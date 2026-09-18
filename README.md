@@ -3,6 +3,8 @@
 Proyecto final de Programación Web (71.38) — ITBA.
 Aplicación web para la gestión de reservas de clases de pilates reformer.
 
+## Demo: https://estudio-pilates-theta.vercel.app
+
 ## Descripción
 
 Los usuarios compran paquetes de clases, que se acreditan en su cuenta,
@@ -42,7 +44,7 @@ cuando alguien cancela.
 ## Estado del proyecto
 
 - [x] Repositorio y control de versiones
-- [ ] E1 — CI/CD y preview por PR
+- [x] E1 — CI/CD y preview por PR
 - [ ] E2 — Landing semántica y responsive
 - [ ] E3 — Formularios dinámicos con fetch y validación
 - [ ] E4 — Catálogo navegable y API interna
