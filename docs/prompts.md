@@ -17,6 +17,25 @@ webhook: acreditar clases cuando el pago se confirma.
 
 ---
 
+## 2026-09-18 — Vite sobrescribió el README
+
+**Qué pasó:** Al correr `npm create vite@latest .` sobre la carpeta del
+repo, elegí "Ignore files and continue" para conservar los archivos
+existentes. La plantilla de React igual reemplazó el README.md por el suyo.
+
+**Cómo lo detecté:** `git status` mostraba `modified: README.md` cuando yo
+no había tocado ese archivo.
+
+**Corrección:** `git restore README.md` para recuperar la versión del
+último commit. El .gitignore que generó Vite sí lo conservé, porque
+incluye node_modules, dist y los archivos .env.
+
+**Aprendizaje:** "Ignore files" no garantiza que no se pisen archivos.
+Conviene commitear antes de correr cualquier scaffolding, justamente para
+poder revertir.
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título
