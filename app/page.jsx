@@ -1,8 +1,21 @@
+import Hero from './components/Hero'
+import TiposDeClase from './components/TiposDeClase'
+import Paquetes from './components/Paquetes'
+import Reservas from './components/Reservas'
+import Franja from './components/Franja'
+import Nosotras from './components/Nosotras'
+import Preguntas from './components/Preguntas'
+
 export default function Home() {
   return (
     <main>
-      <h1>Estudio Pilates</h1>
-      <p>Clases de pilates reformer. Reservá tu turno online.</p>
+      <Hero />
+      <TiposDeClase />
+      <Paquetes />
+      <Reservas />
+      <Franja />
+      <Nosotras />
+      <Preguntas />
     </main>
   )
 }
