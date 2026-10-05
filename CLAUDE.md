@@ -25,6 +25,13 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 
 ## Deuda conocida
 
+- La compensación óptica de los títulos (`--compensacion` en `app/globals.css`)
+  depende de la **primera letra** del título, no de la página. El valor por
+  defecto (0.07em) sirve para las letras de asta recta (N, P, R, H, E). Hoy hay
+  dos overrides: `/contacto` porque empieza con C y `/terminos` porque empieza
+  con T. Si esos títulos cambian de nombre, el valor queda mal y nada lo avisa:
+  hay que volver a medir el borde visible del primer carácter.
+
 - La grilla de `/paquetes` (`.paquetes-grilla-pagina` en `app/globals.css`) está
   calculada para exactamente cinco paquetes: usa `nth-child(4)` y `nth-child(5)`
   para centrar la última fila. Hoy los paquetes son un array fijo en

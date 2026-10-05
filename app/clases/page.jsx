@@ -35,7 +35,6 @@ export default function ClasesPage() {
                 <h2 className="clase-nombre">{clase.nombre}</h2>
                 <p className="clase-nivel">{clase.nivel ?? clase.requisito}</p>
                 <p className="clase-texto">{clase.descripcionCorta}</p>
-                {clase.aclaracion && <p className="clase-aclaracion">{clase.aclaracion}</p>}
                 <Link href={`/clases/${clase.slug}`} className="enlace-subrayado">
                   Ver la clase
                 </Link>

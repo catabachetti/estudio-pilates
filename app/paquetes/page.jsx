@@ -48,11 +48,7 @@ export default function PaquetesPage() {
 
         <section className="condiciones">
           <h2 className="seccion-titulo">Condiciones</h2>
-          <ul className="condiciones-lista">
-            {condiciones.map((condicion) => (
-              <li key={condicion}>{condicion}</li>
-            ))}
-          </ul>
+          <p className="seccion-texto">{condiciones}</p>
         </section>
       </div>
     </main>

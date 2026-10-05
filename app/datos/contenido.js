@@ -48,8 +48,6 @@ export const tiposDeClase = [
     duracion: '50 minutos',
     requisito: 'Con autorización médica',
     nivel: null,
-    aclaracion:
-      'No lleva nivel: la clase se adapta a cada etapa del embarazo y requiere autorización médica.',
     queLlevar: ['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
   },
 ]
@@ -106,12 +104,7 @@ export const DIRECCION = {
   ciudad: 'Ciudad de Buenos Aires',
 }
 
-export const condiciones = [
-  'Los créditos vencen según el paquete que compres.',
-  'Siempre se consume primero el crédito que vence antes.',
-  `Podés cancelar sin costo hasta ${HORAS_CANCELACION} horas antes de la clase.`,
-  'Después de esa ventana el crédito se pierde.',
-]
+export const condiciones = `Los créditos vencen según el paquete que compres y siempre se consume primero el que vence antes. Podés cancelar sin costo hasta ${HORAS_CANCELACION} horas antes de la clase; pasada esa ventana, el crédito se pierde.`
 
 export const grilla = [
   {
