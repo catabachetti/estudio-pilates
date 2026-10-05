@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import EncabezadoPagina from '../components/EncabezadoPagina'
 import { instructoras } from '../datos/contenido'
 
 export const metadata = {
@@ -20,7 +21,7 @@ export default function NosotrasPage() {
       </div>
 
       <div className="contenedor seccion">
-        <h1 className="pagina-titulo">El estudio</h1>
+        <EncabezadoPagina titulo="El estudio" />
 
         <div className="texto-largo">
           <p>

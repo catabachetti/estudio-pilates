@@ -15,7 +15,7 @@ export default function TiposDeClase() {
           />
           <div className="panel-contenido">
             <h2 className="panel-nombre">{clase.nombre}</h2>
-            <p className="panel-nivel">{clase.nivel}</p>
+            <p className="panel-nivel">{clase.requisito}</p>
             <Link href={`/clases/${clase.slug}`} className="enlace-claro">
               Ver la clase
             </Link>

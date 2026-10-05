@@ -1,5 +1,7 @@
 import Image from 'next/image'
-import { TELEFONO_WHATSAPP } from '../datos/contenido'
+import EncabezadoPagina from '../components/EncabezadoPagina'
+import { TELEFONO_WHATSAPP, DIRECCION } from '../datos/contenido'
+import { horariosDeAtencion } from '../datos/agenda'
 
 export const metadata = {
   title: 'Contacto | ACTIVE',
@@ -20,19 +22,18 @@ export default function ContactoPage() {
       </div>
 
       <div className="contenedor seccion">
-        <h1 className="pagina-titulo">Contacto</h1>
-        <p className="seccion-texto">
-          Escribinos y te contamos cuál es la clase que mejor te queda según tu
-          experiencia y tus horarios.
-        </p>
+        <EncabezadoPagina
+          titulo="Contacto"
+          bajada="Escribinos y te contamos cuál es la clase que mejor te queda según tu experiencia y tus horarios."
+        />
 
         <div className="contacto-grilla">
           <section>
             <h2 className="bloque-titulo">Dónde estamos</h2>
             <address className="bloque-datos">
-              Gorriti 4520, Palermo
+              {DIRECCION.calle}, {DIRECCION.barrio}
               <br />
-              Ciudad de Buenos Aires
+              {DIRECCION.ciudad}
               <br />
               <a href={`https://wa.me/${TELEFONO_WHATSAPP}`}>+54 11 0000 0000</a>
               <br />
@@ -45,10 +46,12 @@ export default function ContactoPage() {
           <section>
             <h2 className="bloque-titulo">Atención</h2>
             <p className="bloque-datos">
-              Lunes a viernes de 7:00 a 21:00
-              <br />
-              Sábados de 9:00 a 14:00
-              <br />
+              {horariosDeAtencion().map((bloque) => (
+                <span key={bloque.dia}>
+                  {bloque.dia} de {bloque.desde} a {bloque.hasta}
+                  <br />
+                </span>
+              ))}
               Domingos cerrado
             </p>
           </section>

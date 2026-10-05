@@ -1,3 +1,5 @@
+import EncabezadoPagina from '../components/EncabezadoPagina'
+
 export const metadata = {
   title: 'Términos y condiciones | ACTIVE',
   description:
@@ -8,7 +10,7 @@ export default function TerminosPage() {
   return (
     <main className="seccion">
       <div className="contenedor texto-legal">
-        <h1 className="pagina-titulo">Términos y condiciones</h1>
+        <EncabezadoPagina titulo="Términos y condiciones" />
         <p className="legal-fecha">Última actualización: octubre de 2026</p>
 
         <h2>Alcance</h2>

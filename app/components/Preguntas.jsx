@@ -1,12 +1,10 @@
 import { preguntas } from '../datos/contenido'
 
-export default function Preguntas({ Titulo = 'h2' }) {
+export default function Preguntas({ sinTitulo = false }) {
   return (
-    <section className="preguntas" id="preguntas">
+    <section className={`preguntas${sinTitulo ? ' preguntas-sueltas' : ''}`} id="preguntas">
       <div className="contenedor">
-        <Titulo className={Titulo === 'h1' ? 'pagina-titulo' : 'titulo-seccion'}>
-          Preguntas frecuentes
-        </Titulo>
+        {!sinTitulo && <h2 className="titulo-seccion">Preguntas frecuentes</h2>}
 
         <div className="preguntas-lista">
           {preguntas.map((item) => (

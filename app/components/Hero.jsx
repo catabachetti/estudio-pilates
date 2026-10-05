@@ -25,8 +25,8 @@ export default function Hero() {
         </p>
 
         <div className="hero-botones">
-          <Link href="/horarios" className="boton boton-oscuro">
-            Ver horarios
+          <Link href="/reservar" className="boton boton-oscuro">
+            Reservar una clase
           </Link>
           <Link href="/paquetes" className="boton boton-claro">
             Comprar paquete

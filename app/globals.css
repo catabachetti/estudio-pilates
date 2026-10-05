@@ -579,11 +579,40 @@ img {
   object-fit: cover;
 }
 
-.clases-grilla {
+.clases-filas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 32px;
+  gap: var(--aire);
   margin-top: 48px;
+}
+
+.clase-fila {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+.clase-foto {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.clase-foto img {
+  object-fit: cover;
+}
+
+.clase-datos {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.clase-aclaracion {
+  font-size: 0.9rem;
+  color: var(--gris);
 }
 
 .clase {
@@ -686,9 +715,9 @@ img {
 
 .condiciones-lista {
   display: grid;
-  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px 48px;
   list-style: none;
-  max-width: 680px;
 }
 
 .condiciones-lista li {
@@ -912,6 +941,16 @@ img {
 }
 
 @media (max-width: 860px) {
+  .clase-fila {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+
+  .condiciones-lista {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
   .header-contenido {
     flex-wrap: wrap;
     gap: 14px;
@@ -979,6 +1018,31 @@ img {
 }
 
 @media (max-width: 560px) {
+  .tira-barra {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    font-size: 0.68rem;
+  }
+
+  .tira-rango {
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+
+  .tira-dias {
+    gap: 4px;
+  }
+
+  .tira-dia {
+    padding: 12px 4px;
+  }
+
+  .tira-dia-numero {
+    font-size: 1.1rem;
+  }
+
   .hero {
     min-height: 78vh;
     padding-bottom: 64px;
@@ -1014,89 +1078,89 @@ img {
   }
 }
 
-/* ---------- calendario de reservas ---------- */
+/* ---------- tira semanal de reservas ---------- */
 
-.calendario {
+.tira {
   margin-top: 48px;
-  max-width: 760px;
 }
 
-.calendario-barra {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-  font-size: 0.78rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-
-.calendario-flecha.apagada {
-  color: var(--gris);
-  opacity: 0.5;
-}
-
-.calendario-tabla {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.calendario-tabla caption {
-  text-align: left;
-  font-size: 1.1rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin-bottom: 20px;
-}
-
-.calendario-tabla th {
-  font-weight: 300;
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--gris);
-  padding-bottom: 12px;
-}
-
-.calendario-tabla td {
-  text-align: center;
-  padding: 4px;
-}
-
-.dia a,
-.dia-cerrado {
+.tira-barra {
   display: flex;
   align-items: center;
-  justify-content: center;
-  aspect-ratio: 1;
-  font-variant-numeric: lining-nums;
-  transition: background-color 0.2s, color 0.2s;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
-.dia a {
-  background-color: var(--arena);
+.tira-barra a:hover {
+  color: var(--tierra-oscuro);
 }
 
-.dia a:hover {
-  background-color: var(--carbon);
-  color: var(--crema);
-}
-
-.dia-cerrado {
+.tira-barra .apagado {
   color: var(--gris);
   opacity: 0.45;
 }
 
-.dia[aria-current='date'] a,
-.dia[aria-current='date'] .dia-cerrado {
-  outline: 1px solid var(--tierra-oscuro);
-  outline-offset: -1px;
+.tira-rango {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tierra-oscuro);
 }
 
-.dia-elegido a {
+.tira-dias {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+  list-style: none;
+}
+
+.tira-dia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 8px;
+  background-color: var(--arena);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+a.tira-dia:hover {
+  background-color: var(--tierra-oscuro);
+  color: var(--crema);
+}
+
+.tira-dia-elegido,
+a.tira-dia-elegido:hover {
   background-color: var(--carbon);
   color: var(--crema);
+}
+
+.tira-dia-cerrado {
+  color: var(--gris);
+  opacity: 0.5;
+}
+
+.tira-dia-nombre {
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.tira-dia-numero {
+  font-size: 1.5rem;
+  font-variant-numeric: lining-nums;
+}
+
+.turno-finalizado th,
+.turno-finalizado td {
+  color: var(--gris);
+  opacity: 0.55;
 }
 
 .dia-detalle {
@@ -1115,4 +1179,28 @@ img {
   .calendario-barra {
     font-size: 0.7rem;
   }
+}
+
+/* ---------- encabezado de pagina ---------- */
+
+.encabezado {
+  max-width: 560px;
+  margin-bottom: 32px;
+}
+
+.encabezado .seccion-texto {
+  margin-bottom: 0;
+}
+
+.preguntas-sueltas {
+  padding-top: 0;
+}
+
+@media (max-width: 860px) {
+}
+
+/* El bloque que sigue al encabezado no suma su propio margen: el salto lo fija
+   el encabezado y queda igual en todas las paginas. */
+.encabezado + * {
+  margin-top: 0;
 }

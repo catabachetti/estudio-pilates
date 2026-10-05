@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { navegacionPie, TELEFONO_WHATSAPP } from '../datos/contenido'
+import { navegacionPie, TELEFONO_WHATSAPP, DIRECCION } from '../datos/contenido'
+import { horariosDeAtencion } from '../datos/agenda'
 
 export default function Footer() {
   return (
@@ -28,9 +29,9 @@ export default function Footer() {
         <div>
           <h2 className="footer-titulo">Contacto</h2>
           <address className="footer-datos">
-            Gorriti 4520, Palermo
+            {DIRECCION.calle}, {DIRECCION.barrio}
             <br />
-            Ciudad de Buenos Aires
+            {DIRECCION.ciudad}
             <br />
             <a href={`https://wa.me/${TELEFONO_WHATSAPP}`}>+54 11 0000 0000</a>
             <br />
@@ -40,16 +41,15 @@ export default function Footer() {
 
         <div>
           <h2 className="footer-titulo">Horarios</h2>
-          <p className="footer-datos">
-            Lunes a viernes
-            <br />
-            7:00 a 21:00
-            <br />
-            <br />
-            Sábados
-            <br />
-            9:00 a 14:00
-          </p>
+          <div className="footer-datos">
+            {horariosDeAtencion().map((bloque) => (
+              <p key={bloque.dia}>
+                {bloque.dia}
+                <br />
+                {bloque.desde} a {bloque.hasta}
+              </p>
+            ))}
+          </div>
         </div>
       </div>
 

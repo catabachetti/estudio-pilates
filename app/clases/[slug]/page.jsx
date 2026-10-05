@@ -60,7 +60,11 @@ export default async function ClasePage({ params }) {
           </div>
           <div className="ficha-item">
             <dt>Nivel</dt>
-            <dd>{clase.nivel}</dd>
+            <dd>{clase.nivel ?? 'Sin nivel'}</dd>
+          </div>
+          <div className="ficha-item">
+            <dt>Requisito</dt>
+            <dd>{clase.requisito}</dd>
           </div>
           <div className="ficha-item">
             <dt>Qué llevar</dt>
@@ -68,8 +72,10 @@ export default async function ClasePage({ params }) {
           </div>
         </dl>
 
-        <Link href="/horarios" className="boton boton-oscuro">
-          Ver horarios
+        {clase.aclaracion && <p className="nota">{clase.aclaracion}</p>}
+
+        <Link href="/reservar" className="boton boton-oscuro">
+          Reservar una clase
         </Link>
       </div>
     </main>
