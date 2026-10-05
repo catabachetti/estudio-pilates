@@ -68,11 +68,15 @@ export default async function ClasePage({ params }) {
           </div>
           <div className="ficha-item">
             <dt>Qué llevar</dt>
-            <dd>{clase.queLlevar.join(', ')}</dd>
+            <dd>
+              <ul className="lista-simple">
+                {clase.queLlevar.map((cosa) => (
+                  <li key={cosa}>{cosa}</li>
+                ))}
+              </ul>
+            </dd>
           </div>
         </dl>
-
-        {clase.aclaracion && <p className="nota">{clase.aclaracion}</p>}
 
         <Link href="/reservar" className="boton boton-oscuro">
           Reservar una clase

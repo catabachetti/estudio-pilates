@@ -10,7 +10,8 @@ export default function TerminosPage() {
   return (
     <main className="seccion">
       <div className="contenedor texto-legal">
-        <EncabezadoPagina titulo="Términos y condiciones" />
+        {/* el título empieza con T: ver la compensación óptica en globals.css */}
+        <EncabezadoPagina titulo="Términos y condiciones" compensacion="-0.01em" />
         <p className="legal-fecha">Última actualización: octubre de 2026</p>
 
         <h2>Alcance</h2>

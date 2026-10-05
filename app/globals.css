@@ -319,7 +319,7 @@ img {
 
 .paquetes-seccion {
   position: relative;
-  padding: 96px 0;
+  padding-block: 96px;
   overflow: hidden;
 }
 
@@ -384,7 +384,7 @@ img {
 
 .seccion-clara {
   background-color: var(--crema);
-  padding: 96px 0;
+  padding-block: 96px;
 }
 
 .bloque-grilla {
@@ -504,7 +504,7 @@ img {
 /* ---------- preguntas ---------- */
 
 .preguntas {
-  padding: 96px 0;
+  padding-block: 96px;
 }
 
 .preguntas-lista {
@@ -548,7 +548,7 @@ img {
 /* ---------- páginas internas ---------- */
 
 .seccion {
-  padding: 96px 0;
+  padding-block: 96px;
 }
 
 .pagina-titulo {
@@ -610,20 +610,6 @@ img {
   gap: 16px;
 }
 
-.clase-aclaracion {
-  font-size: 0.9rem;
-  color: var(--gris);
-}
-
-.clase {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 36px 32px;
-  background-color: var(--blanco);
-  border: 1px solid var(--arena);
-}
 
 .clase-nombre {
   font-size: 1.3rem;
@@ -639,10 +625,6 @@ img {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--tierra-oscuro);
-}
-
-.clase .enlace-subrayado {
-  margin-top: auto;
 }
 
 .detalle {
@@ -667,7 +649,9 @@ img {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 24px;
-  margin: var(--aire) 0;
+  /* arriba el aire de siempre; abajo menos, porque lo que sigue es el boton y
+     no otra seccion */
+  margin: var(--aire) 0 40px;
 }
 
 .ficha-item dt {
@@ -713,17 +697,6 @@ img {
   margin-top: var(--aire);
 }
 
-.condiciones-lista {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px 48px;
-  list-style: none;
-}
-
-.condiciones-lista li {
-  color: var(--gris);
-}
-
 .texto-largo p,
 .texto-legal p {
   color: var(--gris);
@@ -755,13 +728,6 @@ img {
   margin-top: var(--aire);
 }
 
-.contacto-grilla {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 40px;
-  margin-top: 48px;
-}
-
 .bloque-titulo {
   font-size: 0.72rem;
   letter-spacing: 0.16em;
@@ -790,7 +756,7 @@ img {
 .footer {
   background-color: var(--carbon-profundo);
   color: var(--crema);
-  padding: 80px 0 32px;
+  padding-block: 80px 32px;
 }
 
 .footer-grilla {
@@ -946,11 +912,6 @@ img {
     gap: 28px;
   }
 
-  .condiciones-lista {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-
   .header-contenido {
     flex-wrap: wrap;
     gap: 14px;
@@ -1062,7 +1023,7 @@ img {
   .seccion-clara,
   .preguntas,
   .paquetes-seccion {
-    padding: 72px 0;
+    padding-block: 72px;
   }
 
   .panel-contenido {
@@ -1171,16 +1132,6 @@ a.tira-dia-elegido:hover {
   margin-top: var(--aire);
 }
 
-@media (max-width: 560px) {
-  .calendario-tabla td {
-    padding: 2px;
-  }
-
-  .calendario-barra {
-    font-size: 0.7rem;
-  }
-}
-
 /* ---------- encabezado de pagina ---------- */
 
 .encabezado {
@@ -1203,4 +1154,36 @@ a.tira-dia-elegido:hover {
    el encabezado y queda igual en todas las paginas. */
 .encabezado + * {
   margin-top: 0;
+}
+
+/* Alineacion optica de los titulos grandes.
+   Cada glifo trae un espacio lateral propio que escala con el tamano de fuente:
+   a 51px el borde visible de una N queda 4,3px adentro de la caja, mientras que
+   en el texto de 16px ese mismo espacio es de 1,3px. Resultado: el titulo se ve
+   corrido a la derecha respecto de la bajada. La compensacion va en em para que
+   escale con el clamp() del tamano.
+
+   ATENCION, misma deuda que el nth-child de los paquetes: el valor depende de
+   la PRIMERA LETRA del titulo, no de la pagina. El valor por defecto (0.07em)
+   sirve para
+   las letras de asta recta (N, P, R, H, E), que son la mayoria. Dos titulos
+   necesitan el suyo:
+     --compensacion: 0.02em   -> titulos que empiezan con C (hoy "Contacto"),
+                                 porque la curva ya acerca la tinta al borde.
+     --compensacion: -0.01em  -> titulos que empiezan con T (hoy "Terminos y
+                                 condiciones"), porque el asta horizontal de la
+                                 T llega al borde y no hay nada que compensar.
+   Si manana esos titulos cambian de nombre, el valor queda mal y nadie se
+   entera: hay que volver a medir. */
+.pagina-titulo,
+.titulo-seccion,
+.titulo-claro,
+.hero-titulo {
+  margin-left: calc(var(--compensacion, 0.07em) * -1);
+}
+
+.lista-simple {
+  list-style: none;
+  display: grid;
+  gap: 2px;
 }
