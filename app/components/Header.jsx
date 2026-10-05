@@ -19,7 +19,7 @@ export default function Header() {
           </ul>
         </nav>
 
-        <Link href="/horarios" className="boton boton-oscuro">
+        <Link href="/reservar" className="boton boton-oscuro">
           Reservar
         </Link>
       </div>

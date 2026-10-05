@@ -1,14 +1,19 @@
 import Link from 'next/link'
-import { enlaceWhatsapp } from '../datos/contenido'
+import EncabezadoPagina from '../components/EncabezadoPagina'
+import { enlaceWhatsapp, HORAS_CANCELACION, CUPO_MAXIMO } from '../datos/contenido'
 import {
   aClave,
-  claveDeMes,
   clasesDe,
+  diaCorto,
+  diaPedido,
   estaAbierta,
-  hoy,
-  mesPedido,
-  nombreDeMes,
-  semanasDelMes,
+  hasta,
+  hayAnterior,
+  primerDiaDeSemana,
+  rangoDeSemana,
+  semanaAnterior,
+  semanaDe,
+  semanaSiguiente,
   textoDeFecha,
   SEMANAS_ABIERTAS,
 } from '../datos/agenda'
@@ -19,100 +24,75 @@ export const metadata = {
     'Elegí el día y el horario de tu clase de reformer. Agenda abierta con ocho semanas de anticipación.',
 }
 
-const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-
 export default async function ReservarPage({ searchParams }) {
   const parametros = await searchParams
-  const { anio, mes } = mesPedido(parametros?.mes)
-  const diaElegido =
-    typeof parametros?.dia === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parametros.dia)
-      ? parametros.dia
-      : null
-
-  const hoyClave = aClave(hoy())
-  const esteMes = claveDeMes(anio, mes)
-  const anterior = new Date(anio, mes - 1, 1)
-  const siguiente = new Date(anio, mes + 1, 1)
-  const primeroDeEsteMes = new Date(hoy().getFullYear(), hoy().getMonth(), 1)
-  const hayAnterior = anterior >= primeroDeEsteMes
+  const elegido = diaPedido(parametros?.dia)
+  const dias = semanaDe(elegido)
+  const anterior = semanaAnterior(elegido)
+  const siguiente = semanaSiguiente(elegido)
 
   return (
     <main className="seccion">
       <div className="contenedor">
-        <h1 className="pagina-titulo">Reservar</h1>
-        <p className="seccion-texto">
-          La agenda está abierta {SEMANAS_ABIERTAS} semanas. Elegí un día con
-          clases y después el horario que te quede cómodo.
-        </p>
+        <EncabezadoPagina
+          titulo="Reservar"
+          bajada="Elegí el día y después el horario que te quede cómodo. Para reservar necesitás un paquete activo."
+        />
 
-        <div className="calendario">
-          <div className="calendario-barra">
-            {hayAnterior ? (
-              <Link
-                href={`/reservar?mes=${claveDeMes(anterior.getFullYear(), anterior.getMonth())}`}
-                className="calendario-flecha"
-                rel="prev"
-              >
-                <span aria-hidden="true">←</span> Mes anterior
+        <nav className="tira" aria-label="Días de la semana">
+          <div className="tira-barra">
+            {hayAnterior(elegido) ? (
+              <Link href={`/reservar?dia=${primerDiaDeSemana(anterior)}`} rel="prev">
+                <span aria-hidden="true">←</span> Semana anterior
               </Link>
             ) : (
-              <span className="calendario-flecha apagada">
-                <span aria-hidden="true">←</span> Mes anterior
+              <span className="apagado">
+                <span aria-hidden="true">←</span> Semana anterior
               </span>
             )}
 
-            <Link
-              href={`/reservar?mes=${claveDeMes(siguiente.getFullYear(), siguiente.getMonth())}`}
-              className="calendario-flecha"
-              rel="next"
-            >
-              Mes siguiente <span aria-hidden="true">→</span>
-            </Link>
+            <p className="tira-rango">{rangoDeSemana(dias)}</p>
+
+            {hasta(siguiente) ? (
+              <Link href={`/reservar?dia=${primerDiaDeSemana(siguiente)}`} rel="next">
+                Semana siguiente <span aria-hidden="true">→</span>
+              </Link>
+            ) : (
+              <span className="apagado">
+                Semana siguiente <span aria-hidden="true">→</span>
+              </span>
+            )}
           </div>
 
-          <table className="calendario-tabla">
-            <caption>{nombreDeMes(anio, mes)}</caption>
-            <thead>
-              <tr>
-                {DIAS.map((dia) => (
-                  <th scope="col" key={dia}>
-                    {dia}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {semanasDelMes(anio, mes).map((semana, i) => (
-                <tr key={i}>
-                  {semana.map((fecha, j) => {
-                    if (!fecha) return <td key={j} className="dia-vacio" />
-                    const clave = aClave(fecha)
-                    const abierta = estaAbierta(fecha)
-                    const esHoy = clave === hoyClave
-                    const elegido = clave === diaElegido
-                    return (
-                      <td
-                        key={j}
-                        className={`dia${elegido ? ' dia-elegido' : ''}`}
-                        aria-current={esHoy ? 'date' : undefined}
-                      >
-                        {abierta ? (
-                          <Link href={`/reservar?mes=${esteMes}&dia=${clave}`}>
-                            {fecha.getDate()}
-                          </Link>
-                        ) : (
-                          <span className="dia-cerrado">{fecha.getDate()}</span>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          <ul className="tira-dias">
+            {dias.map((dia) => {
+              const clave = aClave(dia)
+              const abierto = estaAbierta(dia)
+              const esElegido = clave === elegido
+              return (
+                <li key={clave}>
+                  {abierto ? (
+                    <Link
+                      href={`/reservar?dia=${clave}`}
+                      className={`tira-dia${esElegido ? ' tira-dia-elegido' : ''}`}
+                      aria-current={esElegido ? 'date' : undefined}
+                    >
+                      <span className="tira-dia-nombre">{diaCorto(dia)}</span>
+                      <span className="tira-dia-numero">{dia.getDate()}</span>
+                    </Link>
+                  ) : (
+                    <span className="tira-dia tira-dia-cerrado">
+                      <span className="tira-dia-nombre">{diaCorto(dia)}</span>
+                      <span className="tira-dia-numero">{dia.getDate()}</span>
+                    </span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </nav>
 
-        {diaElegido && <ClasesDelDia clave={diaElegido} />}
+        <ClasesDelDia clave={elegido} />
       </div>
     </main>
   )
@@ -146,18 +126,17 @@ function ClasesDelDia({ clave }) {
         </thead>
         <tbody>
           {clases.map((clase) => (
-            <tr key={clase.hora}>
+            <tr key={clase.hora} className={clase.finalizada ? 'turno-finalizado' : undefined}>
               <th scope="row">{clase.hora}</th>
               <td>{clase.clase}</td>
               <td>{clase.instructora}</td>
               <td>
-                {clase.cupos === 0 && 'Sin cupo'}
-                {clase.cupos === 1 && '1 lugar disponible'}
-                {clase.cupos > 1 && `${clase.cupos} lugares disponibles`}
+                {clase.finalizada && 'Finalizada'}
+                {!clase.finalizada && clase.cupos === 0 && 'Sin cupo'}
+                {!clase.finalizada && clase.cupos === 1 && '1 lugar disponible'}
+                {!clase.finalizada && clase.cupos > 1 && `${clase.cupos} lugares disponibles`}
               </td>
-              <td>
-                <AccionDeTurno clase={clase} clave={clave} />
-              </td>
+              <td>{clase.finalizada ? '' : <AccionDeTurno clase={clase} clave={clave} />}</td>
             </tr>
           ))}
         </tbody>
@@ -166,8 +145,8 @@ function ClasesDelDia({ clave }) {
   )
 }
 
-// PROVISORIO HASTA E5: la reserva todavia no se guarda en ningun lado, asi que
-// el boton abre WhatsApp con la clase y la fecha ya escritas. Cuando exista el
+// PROVISORIO HASTA E5: la reserva todavía no se guarda en ningún lado, así que
+// el botón abre WhatsApp con la clase y la fecha ya escritas. Cuando exista el
 // formulario contra la base de datos, esto pasa a ser un submit.
 function AccionDeTurno({ clase, clave }) {
   const cuando = `el ${textoDeFecha(clave)} a las ${clase.hora}`

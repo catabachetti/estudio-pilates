@@ -15,6 +15,13 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 - HTML semántico y accesible: labels asociados, alt en imágenes,
   jerarquía de encabezados correcta.
 - Next 16: `params` es una Promise, se usa con await.
+- Una fuente por dato, no una aparición por dato. Cada hecho del negocio
+  (horarios, dirección, cupo máximo, duración, política de cancelación) se
+  escribe una sola vez en `app/datos/` y las páginas lo leen de ahí. Que ese
+  dato después se vea en dos lugares de la pantalla no es un problema: el
+  footer con dirección y horario es una convención, y quien entra a /contacto
+  espera encontrarlos ahí sin bajar al pie. Lo que no puede repetirse es el
+  valor escrito a mano en dos archivos, porque se desincroniza.
 
 ## Deuda conocida
 

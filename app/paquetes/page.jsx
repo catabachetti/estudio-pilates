@@ -1,4 +1,12 @@
-import { paquetes, condiciones, precioEnPesos, enlaceWhatsapp } from '../datos/contenido'
+import EncabezadoPagina from '../components/EncabezadoPagina'
+import {
+  paquetes,
+  condiciones,
+  precioEnPesos,
+  enlaceWhatsapp,
+  paqueteMasChico,
+  HORAS_CANCELACION,
+} from '../datos/contenido'
 
 export const metadata = {
   title: 'Paquetes | ACTIVE',
@@ -11,11 +19,10 @@ export default function PaquetesPage() {
   return (
     <main className="seccion">
       <div className="contenedor">
-        <h1 className="pagina-titulo">Paquetes</h1>
-        <p className="seccion-texto">
-          Comprás las clases y se acreditan en tu cuenta. Reservás el día y el
-          horario que quieras mientras tengas créditos disponibles.
-        </p>
+        <EncabezadoPagina
+          titulo="Paquetes"
+          bajada="Comprás las clases y se acreditan en tu cuenta. Reservás el día y el horario que quieras mientras tengas créditos disponibles."
+        />
 
         <ul className="paquetes-grilla-pagina">
           {paquetes.map((paquete) => (

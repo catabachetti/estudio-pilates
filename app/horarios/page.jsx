@@ -1,22 +1,23 @@
 import Link from 'next/link'
+import EncabezadoPagina from '../components/EncabezadoPagina'
 import TablaHorarios from '../components/TablaHorarios'
+import { DURACION_CLASE } from '../datos/agenda'
+import { CUPO_MAXIMO } from '../datos/contenido'
 
 export const metadata = {
   title: 'Horarios | ACTIVE',
   description:
-    'Grilla semanal de clases de reformer en Palermo. Turnos de lunes a viernes de 7:00 a 21:00 y sábados por la mañana.',
+    'Grilla semanal de clases de reformer en Palermo: horarios de lunes a viernes y sábados por la mañana.',
 }
 
 export default function HorariosPage() {
   return (
     <main className="seccion">
       <div className="contenedor">
-        <h1 className="pagina-titulo">Horarios</h1>
-        <p className="seccion-texto">
-          Esta es nuestra semana tipo. Todas las clases duran 50 minutos y son
-          de hasta seis personas. Para ver la disponibilidad real de cada fecha,
-          entrá al calendario.
-        </p>
+        <EncabezadoPagina
+          titulo="Horarios"
+          bajada={`Esta es nuestra semana tipo. Todas las clases duran ${DURACION_CLASE} minutos y son de hasta ${CUPO_MAXIMO} personas. Para ver la disponibilidad real de cada fecha, entrá al calendario.`}
+        />
 
         <TablaHorarios />
 

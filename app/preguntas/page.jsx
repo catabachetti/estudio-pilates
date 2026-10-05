@@ -1,3 +1,4 @@
+import EncabezadoPagina from '../components/EncabezadoPagina'
 import Preguntas from '../components/Preguntas'
 
 export const metadata = {
@@ -8,8 +9,11 @@ export const metadata = {
 
 export default function PreguntasPage() {
   return (
-    <main>
-      <Preguntas Titulo="h1" />
+    <main className="seccion">
+      <div className="contenedor">
+        <EncabezadoPagina titulo="Preguntas frecuentes" />
+      </div>
+      <Preguntas sinTitulo />
     </main>
   )
 }

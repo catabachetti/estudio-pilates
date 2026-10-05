@@ -1,3 +1,5 @@
+import EncabezadoPagina from '../components/EncabezadoPagina'
+
 export const metadata = {
   title: 'Política de privacidad | ACTIVE',
   description:
@@ -8,7 +10,7 @@ export default function PrivacidadPage() {
   return (
     <main className="seccion">
       <div className="contenedor texto-legal">
-        <h1 className="pagina-titulo">Política de privacidad</h1>
+        <EncabezadoPagina titulo="Política de privacidad" />
         <p className="legal-fecha">Última actualización: octubre de 2026</p>
 
         <h2>Qué datos pedimos</h2>

@@ -12,7 +12,8 @@ export const tiposDeClase = [
       'La instructora corrige postura durante toda la clase y ajusta la resistencia de los resortes para cada persona, así que podés tomarla sin experiencia previa y sostenerla durante años sin que deje de desafiarte.',
     ],
     duracion: '50 minutos',
-    nivel: 'Apta para principiantes',
+    requisito: 'Apta para principiantes',
+    nivel: 'Nivel inicial',
     queLlevar: ['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
   },
   {
@@ -28,7 +29,8 @@ export const tiposDeClase = [
       'Pedimos experiencia previa porque la clase asume que ya conocés el equipo y los principios básicos. Si venís de otro estudio, tomá una Flow primero para que la instructora vea cómo te movés.',
     ],
     duracion: '50 minutos',
-    nivel: 'Requiere experiencia previa',
+    requisito: 'Requiere experiencia previa',
+    nivel: 'Nivel intermedio',
     queLlevar: ['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
   },
   {
@@ -44,7 +46,10 @@ export const tiposDeClase = [
       'Adaptamos cada ejercicio a la etapa en la que estás y evitamos las posiciones contraindicadas. Necesitamos la autorización de tu obstetra antes de la primera clase, y te pedimos que nos avises si algo molesta durante la práctica.',
     ],
     duracion: '50 minutos',
-    nivel: 'Con autorización médica',
+    requisito: 'Con autorización médica',
+    nivel: null,
+    aclaracion:
+      'No lleva nivel: la clase se adapta a cada etapa del embarazo y requiere autorización médica.',
     queLlevar: ['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
   },
 ]
@@ -91,10 +96,20 @@ export const paquetes = [
   },
 ]
 
+// Datos del estudio que se afirman en varias páginas. Viven acá una sola vez
+// para que no puedan contradecirse entre sí.
+export const CUPO_MAXIMO = 6
+export const HORAS_CANCELACION = 6
+export const DIRECCION = {
+  calle: 'Gorriti 4520',
+  barrio: 'Palermo',
+  ciudad: 'Ciudad de Buenos Aires',
+}
+
 export const condiciones = [
   'Los créditos vencen según el paquete que compres.',
   'Siempre se consume primero el crédito que vence antes.',
-  'Podés cancelar sin costo hasta 6 horas antes de la clase.',
+  `Podés cancelar sin costo hasta ${HORAS_CANCELACION} horas antes de la clase.`,
   'Después de esa ventana el crédito se pierde.',
 ]
 
@@ -207,4 +222,8 @@ const formatoPrecio = new Intl.NumberFormat('es-AR', {
 
 export function precioEnPesos(valor) {
   return formatoPrecio.format(valor)
+}
+
+export function paqueteMasChico() {
+  return paquetes.reduce((a, b) => (a.precio <= b.precio ? a : b))
 }
