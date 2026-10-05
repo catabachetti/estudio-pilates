@@ -113,34 +113,43 @@ function ClasesDelDia({ clave }) {
   return (
     <section className="dia-detalle">
       <h2 className="titulo-seccion">{textoDeFecha(clave)}</h2>
-      <table className="tabla-horarios">
-        <caption>Turnos y disponibilidad</caption>
-        <thead>
-          <tr>
-            <th scope="col">Hora</th>
-            <th scope="col">Clase</th>
-            <th scope="col">Instructora</th>
-            <th scope="col">Cupos</th>
-            <th scope="col">Reserva</th>
-          </tr>
-        </thead>
-        <tbody>
-          {clases.map((clase) => (
-            <tr key={clase.hora} className={clase.finalizada ? 'turno-finalizado' : undefined}>
-              <th scope="row">{clase.hora}</th>
-              <td>{clase.clase}</td>
-              <td>{clase.instructora}</td>
-              <td>
-                {clase.finalizada && 'Finalizada'}
-                {!clase.finalizada && clase.cupos === 0 && 'Sin cupo'}
-                {!clase.finalizada && clase.cupos === 1 && '1 lugar disponible'}
-                {!clase.finalizada && clase.cupos > 1 && `${clase.cupos} lugares disponibles`}
-              </td>
-              <td>{clase.finalizada ? '' : <AccionDeTurno clase={clase} clave={clave} />}</td>
+      <div className="bloque-grilla">
+        <table className="tabla-horarios tabla-turnos">
+          <caption>Turnos y disponibilidad</caption>
+          <colgroup>
+            <col className="col-hora" />
+            <col className="col-clase" />
+            <col className="col-instructora" />
+            <col className="col-cupos" />
+            <col className="col-reserva" />
+          </colgroup>
+            <thead>
+            <tr>
+              <th scope="col">Hora</th>
+              <th scope="col">Clase</th>
+              <th scope="col">Instructora</th>
+              <th scope="col">Cupos</th>
+              <th scope="col">Reserva</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {clases.map((clase) => (
+              <tr key={clase.hora} className={clase.finalizada ? 'turno-finalizado' : undefined}>
+                <th scope="row">{clase.hora}</th>
+                <td>{clase.clase}</td>
+                <td>{clase.instructora}</td>
+                <td>
+                  {clase.finalizada && 'Finalizada'}
+                  {!clase.finalizada && clase.cupos === 0 && 'Sin cupo'}
+                  {!clase.finalizada && clase.cupos === 1 && '1 lugar disponible'}
+                  {!clase.finalizada && clase.cupos > 1 && `${clase.cupos} lugares disponibles`}
+                </td>
+                <td>{clase.finalizada ? '' : <AccionDeTurno clase={clase} clave={clave} />}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }

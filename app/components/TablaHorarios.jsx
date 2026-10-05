@@ -7,6 +7,11 @@ export default function TablaHorarios() {
         <div className="bloque-grilla" key={bloque.dia}>
           <table className="tabla-horarios">
             <caption>{bloque.dia}</caption>
+            <colgroup>
+              <col className="col-hora" />
+              <col className="col-clase" />
+              <col className="col-duracion" />
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Hora</th>

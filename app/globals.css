@@ -392,11 +392,61 @@ img {
   overflow-x: auto;
 }
 
+/* Las dos tablas de /horarios y la de /reservar comparten la misma grilla, para
+   que las columnas no se corran segun el contenido de cada dia. Los anchos son
+   porcentuales y estan elegidos sobre el texto mas largo de cada columna mas los
+   20px de padding:
+     hora        "20:00" 47px
+     clase       "Reformer Prenatal" 116px
+     duracion    "50 minutos" 74px
+     instructora "Juana Belgrano" 98px
+     cupos       "4 lugares disponibles" 142px
+     reserva     "Lista de espera" 99px
+   El min-width garantiza que ningun texto se parta cuando la tabla scrollea en
+   pantallas chicas: 520px para la de tres columnas y 700px para la de cinco,
+   porque la suma de sus minimos es 602px. */
 .tabla-horarios {
   width: 100%;
   min-width: 520px;
+  table-layout: fixed;
   border-collapse: collapse;
   text-align: left;
+}
+
+.col-hora {
+  width: 20%;
+}
+
+.col-clase {
+  width: 45%;
+}
+
+.col-duracion {
+  width: 35%;
+}
+
+.tabla-turnos {
+  min-width: 700px;
+}
+
+.tabla-turnos .col-hora {
+  width: 11%;
+}
+
+.tabla-turnos .col-clase {
+  width: 23%;
+}
+
+.col-instructora {
+  width: 20%;
+}
+
+.col-cupos {
+  width: 26%;
+}
+
+.col-reserva {
+  width: 20%;
 }
 
 .tabla-horarios caption {
