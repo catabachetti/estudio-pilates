@@ -1,9 +1,26 @@
 import Image from 'next/image'
-import { paquetes, precioEnPesos, enlaceWhatsapp } from '../datos/contenido'
+import { precioEnPesos, enlaceWhatsapp } from '../datos/sitio'
+import { clienteSupabase } from '../lib/supabase'
 
 // PROVISORIO HASTA E5: sin checkout todavia, el boton abre WhatsApp diciendo
 // que paquete eligio la persona. Despues sera el paso previo al pago.
-export default function Paquetes() {
+export default async function Paquetes() {
+  const { data: paquetes, error } = await clienteSupabase()
+    .from('paquetes')
+    .select('id, nombre, precio, dias_vigencia')
+    .eq('activo', true)
+    .order('orden')
+
+  if (error) {
+    console.error('No se pudieron leer los paquetes de Supabase:', error.message)
+  }
+
+  // En la home, si los precios no se pueden mostrar, la sección entera se omite:
+  // el resto de la página sigue en pie y nadie ve una tarjeta vacía.
+  if (error || !paquetes?.length) {
+    return null
+  }
+
   return (
     <section className="paquetes-seccion parallax" id="paquetes">
       <Image
@@ -25,7 +42,7 @@ export default function Paquetes() {
             <li className="paquete" key={paquete.id}>
               <h3 className="paquete-nombre">{paquete.nombre}</h3>
               <p className="paquete-precio">{precioEnPesos(paquete.precio)}</p>
-              <p className="paquete-vigencia">Vence en {paquete.dias} días</p>
+              <p className="paquete-vigencia">Vence en {paquete.dias_vigencia} días</p>
               <a
                 href={enlaceWhatsapp(
                   `Hola, quiero consultar por el paquete de ${paquete.nombre.toLowerCase()}.`

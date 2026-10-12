@@ -1,4 +1,4 @@
-import { enlaceWhatsapp } from '../datos/contenido'
+import { enlaceWhatsapp } from '../datos/sitio'
 
 export default function Whatsapp() {
   return (

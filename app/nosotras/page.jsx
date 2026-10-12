@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import { instructoras } from '../datos/contenido'
+import { clienteSupabase } from '../lib/supabase'
 
 export const metadata = {
   title: 'El estudio | ACTIVE',
@@ -8,7 +8,19 @@ export const metadata = {
     'Un estudio de reformer en Palermo con grupos de hasta seis personas, instructoras certificadas y equipamiento Balanced Body.',
 }
 
-export default function NosotrasPage() {
+export const revalidate = 3600
+
+export default async function NosotrasPage() {
+  const { data: instructoras, error } = await clienteSupabase()
+    .from('instructoras')
+    .select('id, nombre, bio')
+    .eq('activa', true)
+    .order('nombre')
+
+  if (error) {
+    console.error('No se pudieron leer las instructoras de Supabase:', error.message)
+  }
+
   return (
     <main>
       <div className="media-ancho">

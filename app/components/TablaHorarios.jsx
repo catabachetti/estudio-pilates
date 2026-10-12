@@ -1,9 +1,7 @@
-import { grilla } from '../datos/contenido'
-
-export default function TablaHorarios() {
+export default function TablaHorarios({ bloques }) {
   return (
     <>
-      {grilla.map((bloque) => (
+      {bloques.map((bloque) => (
         <div className="bloque-grilla" key={bloque.dia}>
           <table className="tabla-horarios">
             <caption>{bloque.dia}</caption>

@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import { DIRECCION } from '../datos/contenido'
+import { DIRECCION } from '../datos/sitio'
 
 export const metadata = {
   title: 'Contacto | ACTIVE',

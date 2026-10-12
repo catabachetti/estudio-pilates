@@ -29,7 +29,25 @@ Las migraciones ya aplicadas no se editan: si hace falta cambiar algo, se agrega
 una migración nueva con el número siguiente. Editar una vieja hace que el
 archivo deje de describir lo que realmente pasó en la base.
 
-## El seed se puede correr más de una vez
+## El seed es para arrancar, no para mantener
+
+`seed.sql` sirve para dejar una base vacía lista para usar. **Desde que exista el
+panel de administración (E5), no se vuelve a correr.**
+
+El motivo es que las tres tablas de catálogo usan `on conflict ... do update`:
+el archivo es su fuente de verdad y sobrescribe lo que encuentre. Eso está bien
+mientras el catálogo se edita acá, en git. Deja de estarlo en cuanto alguien
+pueda cambiar un precio desde la web: la próxima corrida lo revierte sin avisar
+y sin dejar rastro.
+
+Si más adelante hace falta actualizar el catálogo de una base en uso, va en otro
+archivo, con otro criterio: diciendo explícitamente qué campos pisa y cuáles
+respeta. No en este.
+
+`clases` es distinta y usa `do nothing`: de esas filas cuelgan las reservas de
+las personas.
+
+## Se puede correr más de una vez
 
 `seed.sql` no borra nada. Cada INSERT es idempotente: o agrega la fila que
 falta, o la deja como está.

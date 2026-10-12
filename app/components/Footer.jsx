@@ -1,8 +1,10 @@
 import Link from 'next/link'
-import { navegacionPie, TELEFONO_WHATSAPP, DIRECCION } from '../datos/contenido'
-import { horariosDeAtencion } from '../datos/agenda'
+import { navegacionPie, TELEFONO_WHATSAPP, DIRECCION } from '../datos/sitio'
+import { horariosDeAtencion } from '../lib/horarios'
 
-export default function Footer() {
+export default async function Footer() {
+  const { horarios } = await horariosDeAtencion()
+
   return (
     <footer className="footer">
       <div className="contenedor footer-grilla">
@@ -42,7 +44,7 @@ export default function Footer() {
         <div>
           <h2 className="footer-titulo">Horarios</h2>
           <div className="footer-datos">
-            {horariosDeAtencion().map((bloque) => (
+            {horarios.map((bloque) => (
               <p key={bloque.dia}>
                 {bloque.dia}
                 <br />
