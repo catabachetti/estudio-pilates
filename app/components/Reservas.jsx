@@ -1,7 +1,16 @@
 import Link from 'next/link'
 import TablaHorarios from './TablaHorarios'
+import { semanaTipo } from '../lib/horarios'
 
-export default function Reservas() {
+export default async function Reservas() {
+  const { bloques, error } = await semanaTipo()
+
+  // En la home, si la grilla no se puede leer, la sección se omite: el resto de
+  // la página sigue y /reservar tiene su propio camino.
+  if (error || bloques.length === 0) {
+    return null
+  }
+
   return (
     <section className="seccion-clara" id="reservas">
       <div className="contenedor">
@@ -11,7 +20,7 @@ export default function Reservas() {
           fecha y elegir tu turno, entrá al calendario.
         </p>
 
-        <TablaHorarios />
+        <TablaHorarios bloques={bloques} />
 
         <p className="llamado">
           <Link href="/reservar" className="boton boton-oscuro">

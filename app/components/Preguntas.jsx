@@ -1,4 +1,4 @@
-import { preguntas } from '../datos/contenido'
+import { preguntas } from '../datos/sitio'
 
 export default function Preguntas({ sinTitulo = false }) {
   return (

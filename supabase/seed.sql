@@ -1,8 +1,30 @@
+-- ===========================================================================
+-- ESTE ARCHIVO ES PARA ARRANCAR UNA BASE VACÍA, NO PARA MANTENER UNA EN USO.
+--
+-- Las tres tablas de catálogo (instructoras, tipos_clase, paquetes) usan
+-- ON CONFLICT ... DO UPDATE: correr este archivo sobrescribe lo que haya en la
+-- base con lo que dice acá, sin avisar y sin posibilidad de deshacerlo.
+--
+-- Desde que exista el panel de administración (E5), donde se van a editar
+-- clases, paquetes y precios desde la web, ESTE ARCHIVO NO SE VUELVE A CORRER:
+-- pisaría ese trabajo en silencio.
+--
+-- Si más adelante hace falta actualizar el catálogo de una base en uso, es otro
+-- archivo con otro criterio, que diga qué cambia y qué respeta. No este.
+-- ===========================================================================
+
 -- Datos iniciales de ACTIVE.
 --
 -- Traduce a la base lo que hoy vive en app/datos/contenido.js y app/datos/agenda.js.
 -- Se puede correr las veces que haga falta sin duplicar nada y, sobre todo, sin
 -- borrar nada: no hay ningún DELETE.
+--
+-- CATÁLOGO vs CLASES: las tres tablas de catálogo (instructoras, tipos_clase,
+-- paquetes) usan ON CONFLICT ... DO UPDATE, así que este archivo es su fuente de
+-- verdad: correrlo sobrescribe lo que haya en la base con lo que dice acá. Si
+-- alguien edita un texto desde el panel de Supabase, la próxima corrida lo pisa.
+-- `clases` usa DO NOTHING, porque ahí sí hay datos que no vienen de este archivo:
+-- las reservas de las personas cuelgan de esas filas.
 --
 -- POR QUÉ NO HAY DELETE: `reservas.clase_id` referencia a `clases` con
 -- ON DELETE CASCADE. Un `delete from clases` no daría error, se llevaría las
@@ -32,7 +54,9 @@ insert into instructoras (nombre, bio, imagen) values
   ('Juana Belgrano',
    'Especialista en prenatal y posparto. Acompaña el embarazo trimestre a trimestre y la vuelta al movimiento.',
    null)
-on conflict (nombre) do nothing;
+on conflict (nombre) do update set
+  bio = excluded.bio,
+  imagen = excluded.imagen;
 
 -- ---------------------------------------------------------------------------
 -- tipos_clase
@@ -44,7 +68,8 @@ on conflict (nombre) do nothing;
 -- `duracion_min` sale de DURACION_CLASE, que en el código es 50.
 
 insert into tipos_clase
-  (slug, nombre, descripcion_corta, descripcion_larga, nivel, requisito, duracion_min, imagen, orden)
+  (slug, nombre, descripcion_corta, descripcion_larga, nivel, requisito, duracion_min,
+   imagen, imagen_alt, que_llevar, orden)
 values
   ('flow',
    'Reformer Flow',
@@ -56,6 +81,8 @@ La instructora corrige postura durante toda la clase y ajusta la resistencia de 
    'Apta para principiantes',
    50,
    '/imagenes/clase-flow.jpg',
+   'Mujer recostada en un reformer estirando los brazos por encima de la cabeza',
+   array['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
    1),
 
   ('power',
@@ -68,6 +95,8 @@ Pedimos experiencia previa porque la clase asume que ya conocés el equipo y los
    'Requiere experiencia previa',
    50,
    '/imagenes/clase-power.jpg',
+   'Mujer sentada en un reformer empujando la barra de pies con las piernas',
+   array['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
    2),
 
   ('prenatal',
@@ -80,8 +109,20 @@ Adaptamos cada ejercicio a la etapa en la que estás y evitamos las posiciones c
    'Con autorización médica',
    50,
    '/imagenes/clase-prenatal.jpg',
+   'Mujer embarazada sentada en un reformer mientras una instructora la asiste',
+   array['Medias antideslizantes', 'Botella de agua', 'Ropa cómoda'],
    3)
-on conflict (slug) do nothing;
+on conflict (slug) do update set
+  nombre            = excluded.nombre,
+  descripcion_corta = excluded.descripcion_corta,
+  descripcion_larga = excluded.descripcion_larga,
+  nivel             = excluded.nivel,
+  requisito         = excluded.requisito,
+  duracion_min      = excluded.duracion_min,
+  imagen            = excluded.imagen,
+  imagen_alt        = excluded.imagen_alt,
+  que_llevar        = excluded.que_llevar,
+  orden             = excluded.orden;
 
 -- ---------------------------------------------------------------------------
 -- paquetes
@@ -92,13 +133,23 @@ on conflict (slug) do nothing;
 -- acceso libre durante su vigencia. El check (clases > 0) no se rompe, porque
 -- en SQL un null no falla una restricción de verificación: la deja pasar.
 
-insert into paquetes (nombre, clases, precio, dias_vigencia, orden) values
-  ('1 clase',   1,     18000, 30,  1),
-  ('4 clases',  4,     64000, 60,  2),
-  ('8 clases',  8,    120000, 90,  3),
-  ('12 clases', 12,   168000, 120, 4),
-  ('Mes libre', null, 195000, 30,  5)
-on conflict (nombre) do nothing;
+insert into paquetes (nombre, clases, precio, dias_vigencia, orden, incluye) values
+  ('1 clase',   1,     18000, 30,  1,
+   'Una clase suelta, para probar el estudio o sumar a tu semana.'),
+  ('4 clases',  4,     64000, 60,  2,
+   'Una clase por semana durante un mes, con margen para reprogramar.'),
+  ('8 clases',  8,    120000, 90,  3,
+   'Dos clases por semana. El ritmo que más recomendamos para ver cambios.'),
+  ('12 clases', 12,   168000, 120, 4,
+   'Tres clases por semana, con la vigencia más larga del estudio.'),
+  ('Mes libre', null, 195000, 30,  5,
+   'Todas las clases que quieras durante 30 días, sujeto a disponibilidad.')
+on conflict (nombre) do update set
+  clases        = excluded.clases,
+  precio        = excluded.precio,
+  dias_vigencia = excluded.dias_vigencia,
+  orden         = excluded.orden,
+  incluye       = excluded.incluye;
 
 -- ---------------------------------------------------------------------------
 -- clases

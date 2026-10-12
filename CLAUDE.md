@@ -23,6 +23,24 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   espera encontrarlos ahí sin bajar al pie. Lo que no puede repetirse es el
   valor escrito a mano en dos archivos, porque se desincroniza.
 
+## Claves y variables de entorno
+
+- Las claves van en `.env.local`, nunca en el código. Ese archivo está ignorado
+  por git (`*.local` en `.gitignore`).
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` es pública por diseño: viaja al
+  navegador y cualquiera puede leerla. Lo que protege los datos no es la clave,
+  es RLS. Si una tabla queda sin políticas o con RLS apagada, esa clave alcanza
+  para leerla entera.
+- La clave secreta (`sb_secret_...`) solo se usa en el servidor, nunca lleva el
+  prefijo `NEXT_PUBLIC_` y nunca entra a git. Hoy el proyecto no la necesita:
+  todas las lecturas son públicas.
+- En Vercel las variables se cargan aparte, en Settings → Environment Variables,
+  porque `.env.local` está ignorado por git y nunca llega al deploy.
+  Las que empiezan con `NEXT_PUBLIC_` se cargan como **Config**, no como
+  **Secret**: por definición terminan en el navegador, y marcarlas como secreto
+  da una sensación de protección que no existe. La secreta, cuando haga falta,
+  sí va como Secret.
+
 ## Deuda conocida
 
 - La compensación óptica de los títulos (`--compensacion` en `app/globals.css`)

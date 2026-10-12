@@ -41,6 +41,14 @@ q -c "select 'instructoras' as tabla, count(*) from instructoras union all selec
 echo "  reservas que quedan: $(q -tAc 'select count(*) from reservas;')"
 
 echo
+echo "=== el seed refresca el catalogo? (prueba de upsert) ==="
+q -q -c "update tipos_clase set nombre = 'TEXTO PISADO', que_llevar = null where slug = 'flow';"
+echo "  antes del seed:  $(q -tAc "select nombre from tipos_clase where slug='flow';")  que_llevar=$(q -tAc "select coalesce(array_length(que_llevar,1),0) from tipos_clase where slug='flow';") items"
+q -q -f "$P/seed.sql"
+echo "  despues del seed: $(q -tAc "select nombre from tipos_clase where slug='flow';")  que_llevar=$(q -tAc "select coalesce(array_length(que_llevar,1),0) from tipos_clase where slug='flow';") items"
+echo "  columnas nuevas llenas: imagen_alt=$(q -tAc "select count(*) from tipos_clase where imagen_alt is not null;")/3  incluye=$(q -tAc "select count(*) from paquetes where incluye is not null;")/5"
+
+echo
 echo "=== control de seguridad ==="
 q -c "select relname as tabla, relrowsecurity as rls, (select count(*) from pg_policies p where p.tablename = c.relname) as politicas
       from pg_class c join pg_namespace n on n.oid = c.relnamespace

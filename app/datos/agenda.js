@@ -1,6 +1,3 @@
-import { grilla } from './contenido'
-
-export const SEMANAS_ABIERTAS = 8
 export const DURACION_CLASE = 50
 
 // El estudio está en Buenos Aires, pero el servidor que renderiza puede estar
@@ -42,58 +39,9 @@ export function hoy() {
   return desdeClave(ahoraEnElEstudio().clave)
 }
 
-export function ultimoDiaAbierto() {
-  const fin = hoy()
-  fin.setDate(fin.getDate() + SEMANAS_ABIERTAS * 7 - 1)
-  return fin
-}
-
-// Los turnos salen de la grilla semanal: de lunes a viernes un bloque, los
-// sábados otro, los domingos el estudio no abre.
-export function turnosDe(fecha) {
-  const dia = fecha.getDay()
-  if (dia === 0) return []
-  return (dia === 6 ? grilla[1] : grilla[0]).turnos
-}
-
-export function estaAbierta(fecha) {
-  if (turnosDe(fecha).length === 0) return false
-  const clave = aClave(fecha)
-  return clave >= aClave(hoy()) && clave <= aClave(ultimoDiaAbierto())
-}
-
-// Cupos deterministas: la misma fecha y la misma hora dan siempre el mismo
-// número, en el servidor y en el navegador. Con Math.random() cada render
-// daría otro valor y la página mostraría cupos distintos en cada visita.
-function semilla(texto) {
-  let h = 2166136261
-  for (let i = 0; i < texto.length; i++) {
-    h ^= texto.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return (h >>> 0) / 4294967295
-}
-
-export function cuposDe(clave, hora) {
-  return Math.floor(semilla(`${clave}|${hora}`) * 7)
-}
-
 function enMinutos(hora) {
   const [h, m] = hora.split(':').map(Number)
   return h * 60 + m
-}
-
-export function clasesDe(clave) {
-  const ahora = ahoraEnElEstudio()
-  return turnosDe(desdeClave(clave)).map((turno) => ({
-    ...turno,
-    cupos: cuposDe(clave, turno.hora),
-    // Una clase está finalizada solo si es hoy y ya terminó. En los días que
-    // vienen no hay clases finalizadas.
-    finalizada:
-      clave === ahora.clave &&
-      enMinutos(turno.hora) + DURACION_CLASE <= ahora.minutos,
-  }))
 }
 
 const MESES = [
@@ -126,85 +74,18 @@ export function rangoDeSemana(dias) {
   return `${inicio} a ${fin} ${hasta.getFullYear()}`
 }
 
-export function nombreDeMes(fecha) {
-  return `${MESES[fecha.getMonth()]} de ${fecha.getFullYear()}`
-}
-
-function lunesDe(fecha) {
+export function lunesDe(fecha) {
   const copia = new Date(fecha)
   copia.setDate(copia.getDate() - ((copia.getDay() + 6) % 7))
   return copia
 }
 
-// Los seis días que el estudio abre en la semana de esa fecha, sin domingo y
-// sin los días que ya pasaron.
-export function semanaDe(clave) {
-  const lunes = lunesDe(desdeClave(clave))
-  const claveHoy = aClave(hoy())
-  const dias = []
-  for (let i = 0; i < 6; i++) {
-    const dia = new Date(lunes)
-    dia.setDate(lunes.getDate() + i)
-    if (aClave(dia) >= claveHoy) dias.push(dia)
-  }
-  return dias
-}
 
-export function semanaAnterior(clave) {
-  const lunes = lunesDe(desdeClave(clave))
-  lunes.setDate(lunes.getDate() - 7)
-  return lunes
-}
-
-export function semanaSiguiente(clave) {
-  const lunes = lunesDe(desdeClave(clave))
-  lunes.setDate(lunes.getDate() + 7)
-  return lunes
-}
-
-export function hayAnterior(clave) {
-  return lunesDe(desdeClave(clave)) > lunesDe(hoy())
-}
-
-export function hasta(fecha) {
-  return aClave(fecha) <= aClave(ultimoDiaAbierto())
-}
-
-// Primer día con clases de esa semana, para que las flechas siempre lleven a
-// una fecha válida y no a una semana vacía.
-export function primerDiaDeSemana(fecha) {
-  const dias = semanaDe(aClave(fecha))
-  const abierto = dias.find((d) => estaAbierta(d))
-  return abierto ? aClave(abierto) : aClave(fecha)
-}
-
-// La fecha pedida, si es usable. Si no, hoy, y si hoy está cerrado, el
-// siguiente día que abra.
-export function diaPedido(valor) {
-  if (typeof valor === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(valor)) {
-    const fecha = desdeClave(valor)
-    if (!Number.isNaN(fecha.getTime()) && aClave(fecha) >= aClave(hoy()) && hasta(fecha)) {
-      return valor
-    }
-  }
-  const cursor = hoy()
-  for (let i = 0; i < 7; i++) {
-    if (estaAbierta(cursor)) return aClave(cursor)
-    cursor.setDate(cursor.getDate() + 1)
-  }
-  return aClave(hoy())
-}
-
-// El horario de atencion no se escribe a mano: sale de la grilla. Abre con la
-// primera clase y cierra cuando termina la ultima, redondeado hacia arriba a la
-// hora en punto, que es como lo comunica cualquier negocio: la ultima clase
-// termina 20:50 y el cartel dice 21:00. Si manana agregan un turno a las 21:00,
-// el cierre pasa a 22:00 solo.
-export function horariosDeAtencion() {
-  return grilla.map((bloque) => {
-    const primera = bloque.turnos[0].hora
-    const ultima = bloque.turnos[bloque.turnos.length - 1].hora
-    const cierre = Math.ceil((enMinutos(ultima) + DURACION_CLASE) / 60) * 60
-    return { dia: bloque.dia, desde: primera, hasta: `${cierre / 60}:00` }
-  })
+// Una clase está finalizada solo si es hoy y ya terminó. En los días que vienen
+// no hay clases finalizadas. La hora sale de ahoraEnElEstudio, no del reloj del
+// servidor, que en Vercel corre en UTC.
+export function estaFinalizada(clave, hora) {
+  const ahora = ahoraEnElEstudio()
+  if (clave !== ahora.clave) return false
+  return enMinutos(hora) + DURACION_CLASE <= ahora.minutos
 }

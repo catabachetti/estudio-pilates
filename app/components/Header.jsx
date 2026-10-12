@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { navegacion } from '../datos/contenido'
+import { navegacion } from '../datos/sitio'
 
 export default function Header() {
   return (

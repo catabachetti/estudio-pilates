@@ -1,12 +1,8 @@
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import {
-  paquetes,
-  condiciones,
-  precioEnPesos,
-  enlaceWhatsapp,
-  paqueteMasChico,
-  HORAS_CANCELACION,
-} from '../datos/contenido'
+import { condiciones, precioEnPesos, enlaceWhatsapp } from '../datos/sitio'
+import { clienteSupabase } from '../lib/supabase'
+
+export const revalidate = 3600
 
 export const metadata = {
   title: 'Paquetes | ACTIVE',
@@ -14,8 +10,17 @@ export const metadata = {
     'Paquetes de 1, 4, 8 y 12 clases y mes libre. Las clases se acreditan en tu cuenta y las usás dentro de su vigencia.',
 }
 
-// PROVISORIO HASTA E5: ver el comentario en components/Paquetes.jsx.
-export default function PaquetesPage() {
+export default async function PaquetesPage() {
+  const { data: paquetes, error } = await clienteSupabase()
+    .from('paquetes')
+    .select('id, nombre, clases, precio, dias_vigencia, incluye')
+    .eq('activo', true)
+    .order('orden')
+
+  if (error) {
+    console.error('No se pudieron leer los paquetes de Supabase:', error.message)
+  }
+
   return (
     <main className="seccion">
       <div className="contenedor">
@@ -24,27 +29,33 @@ export default function PaquetesPage() {
           bajada="Comprás las clases y se acreditan en tu cuenta. Reservás el día y el horario que quieras mientras tengas créditos disponibles."
         />
 
-        <ul className="paquetes-grilla-pagina">
-          {paquetes.map((paquete) => (
-            <li className="paquete" key={paquete.id}>
-              <h2 className="paquete-nombre">{paquete.nombre}</h2>
-              <p className="paquete-precio">{precioEnPesos(paquete.precio)}</p>
-              <p className="paquete-vigencia">Vence en {paquete.dias} días</p>
-              <p className="paquete-incluye">{paquete.incluye}</p>
-              <a
-                href={enlaceWhatsapp(
-                  `Hola, quiero consultar por el paquete de ${paquete.nombre.toLowerCase()}.`
-                )}
-                className="boton boton-oscuro"
-                target="_blank"
-                rel="noopener"
-                aria-label={`Consultar por el paquete de ${paquete.nombre.toLowerCase()} por WhatsApp`}
-              >
-                Consultar
-              </a>
-            </li>
-          ))}
-        </ul>
+        {error || !paquetes?.length ? (
+          <PaquetesNoDisponibles />
+        ) : (
+          <ul className="paquetes-grilla-pagina">
+            {paquetes.map((paquete) => (
+              <li className="paquete" key={paquete.id}>
+                <h2 className="paquete-nombre">{paquete.nombre}</h2>
+                <p className="paquete-precio">{precioEnPesos(paquete.precio)}</p>
+                <p className="paquete-vigencia">
+                  Vence en {paquete.dias_vigencia} días
+                </p>
+                <p className="paquete-incluye">{paquete.incluye}</p>
+                <a
+                  href={enlaceWhatsapp(
+                    `Hola, quiero consultar por el paquete de ${paquete.nombre.toLowerCase()}.`
+                  )}
+                  className="boton boton-oscuro"
+                  target="_blank"
+                  rel="noopener"
+                  aria-label={`Consultar por el paquete de ${paquete.nombre.toLowerCase()} por WhatsApp`}
+                >
+                  Consultar
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <section className="condiciones">
           <h2 className="seccion-titulo">Condiciones</h2>
@@ -52,5 +63,26 @@ export default function PaquetesPage() {
         </section>
       </div>
     </main>
+  )
+}
+
+function PaquetesNoDisponibles() {
+  return (
+    <section className="aviso">
+      <h2 className="titulo-seccion">No podemos mostrar los precios ahora</h2>
+      <p>
+        Estamos teniendo un problema para cargar los paquetes. Escribinos y te
+        pasamos los precios y las vigencias.
+      </p>
+      <a
+        href={enlaceWhatsapp('Hola, quiero consultar por los paquetes de clases.')}
+        className="boton boton-oscuro"
+        target="_blank"
+        rel="noopener"
+        aria-label="Consultar por los paquetes por WhatsApp"
+      >
+        Consultar por WhatsApp
+      </a>
+    </section>
   )
 }

@@ -1,8 +1,18 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { instructoras } from '../datos/contenido'
+import { clienteSupabase } from '../lib/supabase'
 
-export default function Nosotras() {
+export default async function Nosotras() {
+  const { data: instructoras, error } = await clienteSupabase()
+    .from('instructoras')
+    .select('id, nombre, bio')
+    .eq('activa', true)
+    .order('nombre')
+
+  if (error) {
+    console.error('No se pudieron leer las instructoras de Supabase:', error.message)
+  }
+
   return (
     <section className="nosotras" id="nosotras">
       <div className="nosotras-imagen parallax">
@@ -29,14 +39,16 @@ export default function Nosotras() {
           Palermo con vestuario y duchas.
         </p>
 
-        <ul className="instructoras-lista">
-          {instructoras.map((instructora) => (
-            <li key={instructora.id}>
-              <h3 className="instructora-nombre">{instructora.nombre}</h3>
-              <p className="instructora-texto">{instructora.especialidad}</p>
-            </li>
-          ))}
-        </ul>
+        {!error && instructoras?.length > 0 && (
+          <ul className="instructoras-lista">
+            {instructoras.map((instructora) => (
+              <li key={instructora.id}>
+                <h3 className="instructora-nombre">{instructora.nombre}</h3>
+                <p className="instructora-texto">{instructora.bio}</p>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <Link href="/nosotras" className="enlace-subrayado">
           Conocé el estudio
