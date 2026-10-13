@@ -148,13 +148,36 @@ img {
   border-bottom: 1px solid var(--arena);
 }
 
+/* TRES ZONAS, CUATRO HIJOS
+   El header tiene cuatro hijos directos: logo, nav, .header-sesion y el boton
+   Reservar. Son cuatro y no dos grupos porque en celular se reparten distinto:
+   el logo y Reservar arriba, el menu y la sesion abajo. Un wrapper los dejaria
+   pegados.
+
+       [logo   menu] .......... [sesion  Reservar]
+        izquierda      aire         derecha
+
+   El gap de 28px es el mismo que el de .nav-lista, asi que todos los enlaces
+   de texto quedan a la misma distancia entre si. El aire variable se produce
+   en un solo lugar, el margin-right: auto del nav. */
 .header-contenido {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 32px;
+  gap: 28px;
   padding-top: 18px;
   padding-bottom: 18px;
+}
+
+/* Entre el logo y el primer item del menu, mas aire que entre items del menu:
+   28 del gap + 20 de aca = 48, para que se lean como dos cosas distintas. */
+.header-contenido > .logo {
+  margin-right: 20px;
+}
+
+/* El unico lugar donde queda espacio variable. Todo lo que sigue se va al
+   borde derecho, y Reservar queda ultimo porque es el ultimo en el marcado. */
+.header-contenido nav {
+  margin-right: auto;
 }
 
 .logo {
@@ -164,6 +187,7 @@ img {
 
 .nav-lista {
   display: flex;
+  align-items: center;
   gap: 28px;
   list-style: none;
   font-size: 0.78rem;
@@ -171,14 +195,59 @@ img {
   text-transform: uppercase;
 }
 
-.nav-lista a {
-  padding-bottom: 3px;
+/* El <li> pasa a flex para que su alto sea exactamente el del enlace. Si no,
+   el enlace es un inline-block apoyado en la linea de base de un <li> con el
+   line-height 1.7 del body, el <li> queda mas alto, y como los dos
+   contenedores se centran en el header el enlace del menu termina 1,5px mas
+   arriba que Panel y Salir. */
+.nav-lista li {
+  display: flex;
+}
+
+/* Un solo molde para los items de la fila: los cuatro del menu, Panel, Salir e
+   Ingresar. inline-block con line-height fijo para que todos midan igual; sin
+   eso el <button> de Salir toma el line-height 1.7 del body y queda mas alto
+   que los <a>.
+
+   EL RELLENO DE ARRIBA NO ES DECORATIVO. Abajo hay 3px de aire mas 1px de
+   borde, que es donde aparece el subrayado al pasar por encima. Si arriba no
+   hubiera nada, la caja creceria 4px de un solo lado: el header centra las
+   cajas, y centrar una caja con el texto corrido hacia arriba deja el texto
+   2px mas alto que el del boton Reservar y el del logo, que si son simetricos.
+   Con 4px arriba la caja queda equilibrada y el centro de la caja coincide con
+   el centro de las letras. */
+.nav-lista a,
+.header-enlace {
+  display: inline-block;
+  line-height: 1.2;
+  padding: 4px 0 3px;
   border-bottom: 1px solid transparent;
   transition: border-color 0.25s;
 }
 
-.nav-lista a:hover {
+.nav-lista a:hover,
+.header-enlace:hover {
   border-bottom-color: var(--tierra);
+}
+
+/* Salir es un <button> porque cierra la sesion con una Server Action, no un
+   enlace. Pero no tiene por que verse distinto, y un boton no hereda ni la
+   tipografia ni el color. */
+/* Las propiedades van una por una y no con el atajo `font`: ese atajo incluye
+   line-height, asi que `font: inherit` traia el 1.7 del body y le pisaba el
+   1.2 del molde de arriba. El boton quedaba 6px mas alto que los enlaces. */
+button.header-enlace {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 4px 0 3px;
+  cursor: pointer;
 }
 
 .header .boton {
@@ -340,9 +409,13 @@ img {
   z-index: 2;
 }
 
+/* auto-fit con 1fr: las columnas que sobran se colapsan y las que quedan se
+   reparten todo el ancho, asi que la fila se llena sola con la cantidad de
+   paquetes que haya. Abajo de 720px esto deja de aplicar y pasa a ser un
+   carrusel horizontal. */
 .paquetes-grilla {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
   list-style: none;
 }
@@ -712,25 +785,18 @@ img {
   margin-bottom: 8px;
 }
 
-/* ATENCION: esta distribucion esta calculada para exactamente cinco paquetes.
-   Tres arriba y dos abajo centradas: seis columnas y cada tarjeta ocupa dos,
-   asi la segunda fila arranca corrida media tarjeta. Si cambia la cantidad de
-   paquetes hay que rehacer la distribucion, porque el nth-child(4) deja de
-   caer donde empieza la segunda fila. */
+/* Cuatro columnas, y abajo dos y una. Ninguna tarjeta tiene una posicion
+   asignada: antes la cuarta y la quinta arrancaban corridas con nth-child para
+   centrar una fila de dos, y eso solo servia con exactamente cinco paquetes.
+   Al salir el mes libre quedaron cuatro, y esa regla habria dejado la cuarta
+   tarjeta sola y corrida. Ahora la cantidad puede cambiar sin tocar nada: una
+   fila incompleta arranca a la izquierda, que es lo que se espera. */
 .paquetes-grilla-pagina {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   margin: 48px 0;
   list-style: none;
-}
-
-.paquetes-grilla-pagina .paquete {
-  grid-column: span 2;
-}
-
-.paquetes-grilla-pagina .paquete:nth-child(4) {
-  grid-column: 2 / span 2;
 }
 
 .paquetes-grilla-pagina .paquete {
@@ -919,40 +985,16 @@ img {
 
 /* ---------- responsive ---------- */
 
-@media (max-width: 1080px) {
-  .paquetes-grilla {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
 @media (max-width: 900px) {
-  /* mismo caso que arriba, tambien atado a que sean cinco paquetes:
-     dos por fila con cuatro columnas, cada tarjeta ocupa dos, y la quinta
-     arranca corrida para quedar centrada en su fila */
   .paquetes-grilla-pagina {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     row-gap: var(--aire);
-  }
-
-  .paquetes-grilla-pagina .paquete,
-  .paquetes-grilla-pagina .paquete:nth-child(4) {
-    grid-column: span 2;
-  }
-
-  .paquetes-grilla-pagina .paquete:nth-child(5) {
-    grid-column: 2 / span 2;
   }
 }
 
 @media (max-width: 560px) {
   .paquetes-grilla-pagina {
     grid-template-columns: 1fr;
-  }
-
-  .paquetes-grilla-pagina .paquete,
-  .paquetes-grilla-pagina .paquete:nth-child(4),
-  .paquetes-grilla-pagina .paquete:nth-child(5) {
-    grid-column: auto;
   }
 }
 
@@ -968,12 +1010,48 @@ img {
   }
 
   .nav-lista {
-    order: 3;
-    width: 100%;
     gap: 18px;
     flex-wrap: wrap;
     font-size: 0.72rem;
   }
+
+  /* Fila 1: logo a la izquierda, Reservar a la derecha.
+     Fila 2: el menu y, a continuacion, los enlaces de sesion.
+
+     Aca va grid y no flex con `order`. Con flex el corte de linea se decide
+     con los tamanos base de cada item, antes de repartir el espacio sobrante,
+     asi que un flex-grow en el logo no fuerza ningun salto: entre 470 y 860px
+     el menu entraba igual en la primera fila, al lado de Reservar. Con areas
+     nombradas cada cosa cae donde tiene que caer y no depende de cuanto mida. */
+  .header-contenido {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'logo menu-aparte'
+      'menu sesion';
+    column-gap: 18px;
+    row-gap: 14px;
+  }
+
+  .header-contenido > .logo {
+    grid-area: logo;
+    margin-right: 0;
+  }
+
+  .header-contenido .boton {
+    grid-area: menu-aparte;
+    justify-self: end;
+  }
+
+  .header-contenido nav {
+    grid-area: menu;
+    margin-right: 0;
+  }
+
+  .header-sesion {
+    grid-area: sesion;
+  }
+
 
   .paneles-fila {
     grid-template-columns: 1fr;
@@ -1251,4 +1329,237 @@ a.tira-dia-elegido:hover {
 
 .aviso p {
   color: var(--gris);
+}
+
+/* ---------- formularios y mensajes ---------- */
+
+.formulario {
+  display: grid;
+  gap: 24px;
+  max-width: 420px;
+  margin-bottom: 32px;
+}
+
+.campo {
+  display: grid;
+  gap: 8px;
+}
+
+.campo label {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tierra-oscuro);
+}
+
+.campo input {
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 300;
+  color: var(--carbon);
+  background-color: var(--blanco);
+  border: 1px solid var(--arena);
+  border-radius: 2px;
+  padding: 12px 14px;
+}
+
+.campo input:focus-visible {
+  outline: 2px solid var(--tierra-oscuro);
+  outline-offset: 1px;
+}
+
+.campo-ayuda {
+  font-size: 0.85rem;
+  color: var(--gris);
+}
+
+.formulario .boton {
+  justify-self: start;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.mensaje {
+  max-width: 560px;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background-color: var(--arena);
+}
+
+.mensaje-error {
+  background-color: var(--carbon);
+  color: var(--crema);
+}
+
+/* Misma tipografia y mismo gap que .nav-lista, para que la fila se lea como
+   una sola. */
+.header-sesion {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.header-sesion form {
+  display: flex;
+}
+
+/* Esta consulta va aca y no con las demas de 860px: .header-sesion se define
+   mas abajo en el archivo que ese bloque, y con la misma especificidad gana la
+   que aparece ultima. Puesta alla arriba, la regla base la pisaba y el tamano
+   de letra no bajaba en celular. */
+@media (max-width: 860px) {
+  .header-sesion {
+    flex-wrap: wrap;
+    gap: 18px;
+    row-gap: 10px;
+    font-size: 0.72rem;
+  }
+}
+
+/* Abajo de 480px el menu y los enlaces de sesion no entran juntos en una fila,
+   y no es cuestion de achicar la separacion: a 375px el texto del menu mide
+   250,8px y el de Panel + Salir otros 75,6px, o sea 326,4px de los 327
+   disponibles. No queda lugar ni con separacion cero. Asi que ahi la sesion
+   baja a su propia fila en vez de apretujarse o desbordar. */
+@media (max-width: 480px) {
+  .header-contenido {
+    grid-template-areas:
+      'logo   menu-aparte'
+      'menu   menu'
+      'sesion sesion';
+  }
+}
+
+/* ---------- panel de administracion ---------- */
+
+.admin-nav {
+  margin-bottom: 40px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--arena);
+}
+
+.admin-nav-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  list-style: none;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-nav-lista a:hover {
+  color: var(--tierra-oscuro);
+}
+
+.admin-numeros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px;
+  margin: 40px 0 var(--aire);
+  list-style: none;
+}
+
+.admin-numero {
+  padding: 28px 24px;
+  background-color: var(--arena);
+}
+
+.admin-numero-valor {
+  font-size: 2.4rem;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.admin-numero-rotulo {
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tierra-oscuro);
+}
+
+.admin-tablero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  margin-bottom: var(--aire);
+  list-style: none;
+}
+
+.admin-acceso {
+  padding: 28px 24px;
+  border: 1px solid var(--arena);
+}
+
+.admin-acceso-titulo {
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+  margin-bottom: 12px;
+}
+
+.admin-acceso p {
+  color: var(--gris);
+  font-size: 0.95rem;
+}
+
+.admin-lista {
+  display: grid;
+  gap: 20px;
+  margin: 40px 0;
+  list-style: none;
+}
+
+.admin-item {
+  padding: 28px 24px;
+  border: 1px solid var(--arena);
+  background-color: var(--blanco);
+}
+
+.admin-item-encabezado {
+  margin-bottom: 24px;
+}
+
+.admin-item-titulo {
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+}
+
+.admin-item-estado {
+  font-size: 0.85rem;
+  color: var(--gris);
+  font-variant-numeric: lining-nums;
+}
+
+/* Los campos de cada paquete en fila, y el boton abajo ocupando el ancho
+   entero de la grilla. Hereda .campo del resto del sitio. */
+.admin-formulario {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  align-items: end;
+}
+
+.admin-formulario .boton,
+.admin-formulario-corto .boton {
+  grid-column: 1 / -1;
+  justify-self: start;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-formulario-corto {
+  display: grid;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--arena);
+}
+
+@media (max-width: 560px) {
+  .admin-formulario {
+    grid-template-columns: 1fr;
+  }
 }

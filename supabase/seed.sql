@@ -129,9 +129,11 @@ on conflict (slug) do update set
 -- ---------------------------------------------------------------------------
 -- Mismo caso que instructoras: `nombre` es unique desde la 005.
 --
--- `clases` va en null para el mes libre: no acredita una cantidad fija, da
--- acceso libre durante su vigencia. El check (clases > 0) no se rompe, porque
--- en SQL un null no falla una restricción de verificación: la deja pasar.
+-- Todos los paquetes acreditan una cantidad fija de clases. El "Mes libre" salió
+-- del catálogo en la migración 008: era el único que no encajaba en el modelo de
+-- créditos y obligaba a un caso especial en el panel, en la reserva y en el
+-- webhook de pagos. Desde esa migración `clases` es not null otra vez, así que
+-- un paquete sin número acá ya no se inserta: lo rechaza la base.
 
 insert into paquetes (nombre, clases, precio, dias_vigencia, orden, incluye) values
   ('1 clase',   1,     18000, 30,  1,
@@ -141,9 +143,7 @@ insert into paquetes (nombre, clases, precio, dias_vigencia, orden, incluye) val
   ('8 clases',  8,    120000, 90,  3,
    'Dos clases por semana. El ritmo que más recomendamos para ver cambios.'),
   ('12 clases', 12,   168000, 120, 4,
-   'Tres clases por semana, con la vigencia más larga del estudio.'),
-  ('Mes libre', null, 195000, 30,  5,
-   'Todas las clases que quieras durante 30 días, sujeto a disponibilidad.')
+   'Tres clases por semana, con la vigencia más larga del estudio.')
 on conflict (nombre) do update set
   clases        = excluded.clases,
   precio        = excluded.precio,

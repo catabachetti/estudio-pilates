@@ -7,7 +7,7 @@ export const revalidate = 3600
 export const metadata = {
   title: 'Paquetes | ACTIVE',
   description:
-    'Paquetes de 1, 4, 8 y 12 clases y mes libre. Las clases se acreditan en tu cuenta y las usás dentro de su vigencia.',
+    'Paquetes de 1, 4, 8 y 12 clases. Las clases se acreditan en tu cuenta y las usás dentro de su vigencia.',
 }
 
 export default async function PaquetesPage() {
