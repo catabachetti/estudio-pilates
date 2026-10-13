@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { navegacionPie, TELEFONO_WHATSAPP, DIRECCION } from '../datos/sitio'
+import { navegacionPie, TELEFONO_WHATSAPP, DIRECCION, MAIL } from '../datos/sitio'
 import { horariosDeAtencion } from '../lib/horarios'
 
 export default async function Footer() {
@@ -37,7 +37,7 @@ export default async function Footer() {
             <br />
             <a href={`https://wa.me/${TELEFONO_WHATSAPP}`}>+54 11 0000 0000</a>
             <br />
-            <a href="mailto:hola@activereformer.com">hola@activereformer.com</a>
+            <a href={`mailto:${MAIL}`}>{MAIL}</a>
           </address>
         </div>
 

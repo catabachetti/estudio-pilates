@@ -1,4 +1,5 @@
 import EncabezadoPagina from '../components/EncabezadoPagina'
+import { MAIL } from '../datos/sitio'
 
 export const metadata = {
   title: 'Política de privacidad | ACTIVE',
@@ -48,7 +49,7 @@ export default function PrivacidadPage() {
         <p>
           La Ley 25.326 de Protección de Datos Personales te da derecho a
           acceder, rectificar y suprimir tus datos. Escribinos a{' '}
-          <a href="mailto:hola@activereformer.com">hola@activereformer.com</a>{' '}
+          <a href={`mailto:${MAIL}`}>{MAIL}</a>{' '}
           y lo resolvemos dentro de los plazos que fija la norma. La Agencia de
           Acceso a la Información Pública es el órgano de control.
         </p>
