@@ -73,6 +73,8 @@ export const preguntas = [
 // un paquete) abren WhatsApp con el mensaje ya escrito, para no perder lo que
 // la persona eligio. Cuando E5 este listo, esto se reemplaza por el formulario
 // y el numero queda solo como contacto.
+export const MAIL = 'activepilatesref@gmail.com'
+
 export const TELEFONO_WHATSAPP = '5491100000000'
 
 export function enlaceWhatsapp(mensaje) {

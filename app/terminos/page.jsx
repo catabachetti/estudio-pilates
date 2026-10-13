@@ -1,4 +1,5 @@
 import EncabezadoPagina from '../components/EncabezadoPagina'
+import { MAIL } from '../datos/sitio'
 
 export const metadata = {
   title: 'Términos y condiciones | ACTIVE',
@@ -63,7 +64,7 @@ export default function TerminosPage() {
         <h2>Consultas</h2>
         <p>
           Por cualquier duda escribinos a{' '}
-          <a href="mailto:hola@activereformer.com">hola@activereformer.com</a>.
+          <a href={`mailto:${MAIL}`}>{MAIL}</a>.
         </p>
       </div>
     </main>
