@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { clienteConSesion } from '../lib/supabase-sesion'
+import { rutaInterna } from '../lib/rutas'
 
 // Acciones de entrar y salir.
 //
@@ -64,7 +65,22 @@ export async function ingresar(formData) {
   const email = String(formData.get('email') ?? '').trim()
   const contrasena = String(formData.get('contrasena') ?? '')
 
-  if (validar({ email, contrasena })) redirect('/ingresar?error=credenciales')
+  // A dónde volver después de entrar. Viene de un campo oculto que a su vez
+  // viene de la URL, así que lo escribe quien quiera: rutaInterna() lo rechaza
+  // si no es una ruta de este sitio, y en ese caso se vuelve al inicio.
+  // Sin esa validación, /ingresar?volver=https://sitio-falso.com usaría el
+  // login del estudio para depositar a la persona en una copia del sitio.
+  const volver = rutaInterna(formData.get('volver'))
+
+  // Si la contraseña está mal hay que volver al formulario, y el destino tiene
+  // que seguir viajando: si no, quien se equivoca una vez pierde a dónde iba.
+  const alFormulario = (motivo) => {
+    const parametros = new URLSearchParams({ error: motivo })
+    if (volver) parametros.set('volver', volver)
+    redirect(`/ingresar?${parametros}`)
+  }
+
+  if (validar({ email, contrasena })) alFormulario('credenciales')
 
   const supabase = await clienteConSesion()
   const { error } = await supabase.auth.signInWithPassword({
@@ -76,11 +92,11 @@ export async function ingresar(formData) {
     console.error('Error al ingresar:', error.message)
     // Siempre el mismo error, exista o no ese correo. Distinguir los casos le
     // diría a cualquiera qué direcciones están registradas en el estudio.
-    redirect('/ingresar?error=credenciales')
+    alFormulario('credenciales')
   }
 
   revalidatePath('/', 'layout')
-  redirect('/')
+  redirect(volver ?? '/')
 }
 
 export async function salir() {

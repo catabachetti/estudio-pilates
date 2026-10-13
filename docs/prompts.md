@@ -245,6 +245,174 @@ commitear, que no quedara ninguna ocurrencia.
 
 ---
 
+## 2026-10-13 — Panel de administración: protección y paquetes
+
+**Prompt:** Panel de administración con `/admin` protegido solo para `rol =
+'admin'`, distinguiendo 401 de 403; CRUD de paquetes; sin `'use client'`, todo
+con Server Actions; validación en el servidor; `revalidatePath` después de cada
+cambio; y sin usar la clave secreta de Supabase.
+
+### Hallazgo 1: la tabla de créditos no tenía política de INSERT
+
+Antes de escribir la pantalla de créditos se revisaron las políticas de RLS de
+`003-politicas.sql`. `creditos` tiene una sola política, de SELECT. Con RLS
+activa eso significa que **nadie** puede insertar créditos con la clave
+publishable, ni siquiera una cuenta con `rol = 'admin'`. `compras` sí tiene
+INSERT, pero con `with check (user_id = auth.uid())`: permite comprar para uno
+mismo, no acreditarle un paquete a otra persona. Y `perfiles` no tiene columna
+de correo, así que "buscar una persona por mail" tampoco era posible: los mails
+viven en `auth.users`.
+
+La pantalla de créditos se habría escrito completa y habría fallado recién al
+apretar el botón, con un error de permisos difícil de interpretar.
+
+**Cómo se detectó:** leyendo las políticas antes de escribir la página, no
+después. La salida de `grep` sobre `003-politicas.sql` muestra tres políticas
+para `compras` y `reservas` y una sola para `creditos`.
+
+**Decisión:** no se usa la clave secreta. La solución son funciones
+`security definer` que verifican `es_admin()` adentro, el mismo patrón que ya
+usan `es_admin()` y `lugares_disponibles()`. La clave secreta saltea RLS por
+completo: si se filtra desde el servidor, expone todo. Una función hace una sola
+cosa y se puede auditar. Queda para la migración que acompañe esa pantalla.
+
+### Hallazgo 2: la verificación de rol no va en el layout
+
+El plan aprobado decía que la verificación autoritativa de `rol = 'admin'` iba
+en `app/admin/layout.jsx`. La documentación de la versión instalada de Next
+(`node_modules/next/dist/docs/01-app/02-guides/authentication.md`, sección
+"Layouts and auth checks") dice que no, con tres razones:
+
+1. Un layout no se vuelve a renderizar al navegar entre páginas que lo
+   comparten, así que la sesión no se revisa en cada cambio de ruta.
+2. Un layout no decide si el resto de la ruta se renderiza: los segmentos los
+   renderiza el router por su cuenta.
+3. Las Server Actions no pasan por ningún layout. Tienen su propia entrada.
+
+La tercera es la decisiva: `/admin/paquetes` edita precios con una Server
+Action, y con la verificación solo en el layout, esa acción se podía invocar
+directo. La misma página cita textual la recomendación de poner los controles
+"as close as possible to your data source".
+
+**Corrección aplicada:** la verificación vive en `app/lib/autorizacion.js` y la
+llaman todas las páginas y todas las acciones. El layout solo decide si dibuja
+el menú, que es decoración. El proxy quedó con una verificación optimista —solo
+si hay sesión, sin consultar la base— porque la misma documentación pide no
+consultar la base ahí: el proxy corre también en los pedidos que Next hace por
+adelantado al pasar el mouse por un enlace.
+
+### Hallazgo 3: el parámetro de retorno era una redirección abierta
+
+Para que `/admin/clases` devuelva a `/admin/clases` después de entrar, el proxy
+manda a `/ingresar?volver=/admin/clases`. Ese parámetro viaja en la URL, así que
+lo escribe cualquiera. Sin validar, `/ingresar?volver=https://sitio-falso.com`
+usa el login del estudio como trampolín: la persona ve el dominio real, escribe
+su contraseña y el sitio la deposita en una copia que se los pide otra vez.
+
+**Corrección aplicada:** `rutaInterna()` en `app/lib/rutas.js`. Exige que
+empiece con una sola barra y rechaza `//sitio`, `/\sitio`, las barras
+invertidas y los espacios en cualquier posición, y borra los caracteres de
+control que los navegadores descartan antes de interpretar una URL. Se valida
+en los dos lados: al dibujar el formulario, para que el valor hostil no llegue
+nunca al HTML, y al recibirlo en la acción, que es la única validación que
+cuenta.
+
+### Hallazgo 4: una escritura rechazada por RLS no devuelve error
+
+Una escritura que RLS rechaza **no devuelve error: devuelve que no modificó
+ninguna fila**, porque para la política esa fila no existe. Sin pedir de vuelta
+lo actualizado, un rechazo de permisos se ve exactamente igual que un guardado
+exitoso.
+
+**Corrección aplicada:** las dos escrituras del panel terminan en
+`.select('id')` y, si vuelve vacío, redirigen con `?error=permiso`.
+
+Esto después resultó ser la señal que hizo medible la contraprueba del layout,
+porque permite distinguir "la acción no corrió" de "la acción corrió y la base
+la frenó".
+
+**Comprobado en vivo**, con el token de la cuenta de cliente contra la API de
+Supabase, salteando la aplicación entera. Dos protecciones distintas, dos
+señales de falla opuestas:
+
+| intento                            | mecanismo que lo frena      | respuesta             |
+| ---------------------------------- | --------------------------- | --------------------- |
+| ponerse `rol = 'admin'` a sí misma | `revoke update` en la tabla | **403** `42501`       |
+| editar el precio de un paquete     | política de RLS             | **200** y cuerpo `[]` |
+
+El segundo caso es el peligroso: la base contesta *éxito* con cero filas. Nada
+en esa respuesta dice "no tenías permiso". Por eso `.select()` no es una
+formalidad.
+
+### Verificación: el agujero abierto y cerrado
+
+Una verificación que nunca falló no demuestra nada. Las dos columnas son el
+mismo pedido POST, con la misma sesión de cliente, al mismo identificador de
+Server Action, replicando lo que manda el formulario sin JavaScript
+(`multipart/form-data` con el campo `$ACTION_ID_...`, sacado de
+`.next/dev/server/server-reference-manifest.json`).
+
+|                                   | verificación en el DAL | verificación solo en el layout |
+| --------------------------------- | ---------------------- | ------------------------------ |
+| GET `/admin/paquetes`             | "Sin permiso", 200     | "Sin permiso", 200             |
+| POST de `editarPaquete`           | **500, cortado**       | **303 → `?error=permiso`**     |
+| precio en la base (antes/después) | 64000 / 64000          | 64000 / 64000                  |
+
+La fila del medio es el hallazgo. Con la verificación solo en el layout, la
+página se protege igual —la pantalla dice "Sin permiso" y no dibuja el
+formulario— y **la acción de abajo corre completa**: parsea el formulario,
+valida, arma el cliente de Supabase y le manda el UPDATE a Postgres. El 303 a
+`?error=permiso` solo es alcanzable *después* de que la base contesta, así que
+es la prueba de que el cuerpo de la acción se ejecutó.
+
+El precio no cambió en ninguna de las dos columnas, y eso es exactamente lo que
+hay que leer con cuidado: en la segunda, lo único que lo salvó fue RLS. La
+autorización dejó de estar en la puerta y pasó a depender enteramente de que la
+política de la base esté bien escrita. Un layout protege lo que se ve y no hace
+nada por lo que se puede hacer.
+
+### Nota sobre los códigos de estado
+
+El rechazo de la acción devuelve **500, no 403**, porque `exigirAdmin()` corta
+con un `throw` y no hay forma de fijar el código desde una Server Action sin
+`forbidden()`, que es experimental. El comportamiento es el correcto —no se
+escribe nada— pero el código HTTP dice "el servidor se rompió" donde pasó "no
+tenés permiso". Queda anotado como deuda, no como prueba pasada.
+
+### Efecto lateral: la grilla de cinco paquetes
+
+Sacar el mes libre dejó cuatro paquetes y activó la deuda que estaba anotada en
+`CLAUDE.md`: `.paquetes-grilla-pagina` centraba la última fila con
+`nth-child(4)` y `nth-child(5)`, calculado para exactamente cinco. Con cuatro,
+esa regla dejaba la cuarta tarjeta sola y corrida. Reemplazada por cuatro
+columnas que bajan a dos y a una, sin reglas por posición. La grilla de la home
+tenía `repeat(5, 1fr)` fijo y pasó a `auto-fit`.
+
+### Hallazgo 5: la home cachea su catálogo por un año
+
+Al verificar que `revalidatePath` hiciera falta de verdad, apareció que
+`app/page.jsx` no declara `revalidate`. Sus `fetch` quedan entonces en el Data
+Cache con `revalidate: 31536000`, un año. Se ve en `.next/cache/fetch-cache`
+después de un build: la consulta de `/paquetes` guarda 3600 y la de la home,
+31536000.
+
+O sea que `revalidatePath('/')` en las acciones del panel no es una precaución
+de más: sin esa línea un precio editado aparece en `/paquetes` dentro de la hora
+y en la home **nunca**.
+
+**Cómo se detectó:** dudando de una afirmación propia. El texto del panel decía
+"sin esperar la hora de caché", y como las rutas figuran todas como dinámicas en
+el build, no estaba claro que hubiera caché que invalidar. Los tiempos de
+respuesta no alcanzaron para decidirlo (165 ms contra 140 ms de una página sin
+consulta, dentro del ruido del modo dev). Lo decidió mirar el contenido de
+`.next/cache/fetch-cache`.
+
+**Predicción:**
+
+**Aprendizaje:**
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título

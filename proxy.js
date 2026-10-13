@@ -35,9 +35,40 @@ export async function proxy(request) {
     }
   )
 
-  // Esta llamada es la que dispara el refresco si el token está por vencer.
-  // No se usa el resultado acá: solo importa que las cookies queden al día.
-  await supabase.auth.getUser()
+  // Esta llamada es la que dispara el refresco si el token está por vencer, y
+  // además dice si hay alguien conectado.
+  const { data } = await supabase.auth.getUser()
+
+  // VERIFICACIÓN OPTIMISTA DEL PANEL
+  //
+  // Acá se mira una sola cosa: si hay sesión. No se mira el rol, y no es un
+  // olvido. La documentación de esta versión de Next pide que el proxy no
+  // consulte la base, porque corre en cada pedido, incluidos los que Next hace
+  // por adelantado al pasar el mouse por un enlace: una consulta de rol acá se
+  // multiplicaría por cada uno de esos pedidos.
+  //
+  // El rol lo verifica app/lib/autorizacion.js, en cada página y en cada
+  // acción. Esto de acá es el filtro barato que evita renderizar el panel para
+  // alguien que no entró, y es gratis porque la llamada ya estaba hecha arriba.
+  //
+  // Es el caso 401: no sabemos quién es. Se lo manda a ingresar con la ruta a
+  // la que quería llegar, para devolverlo ahí cuando entre.
+  if (!data.user && request.nextUrl.pathname.startsWith('/admin')) {
+    const destino = request.nextUrl.pathname + request.nextUrl.search
+    const url = request.nextUrl.clone()
+    url.pathname = '/ingresar'
+    url.search = ''
+    url.searchParams.set('volver', destino)
+
+    // Las cookies que se refrescaron arriba se copian a la redirección. Si se
+    // devolviera una respuesta nueva y vacía, se perderían y la sesión
+    // quedaría a medio renovar.
+    const redireccion = NextResponse.redirect(url)
+    for (const cookie of respuesta.cookies.getAll()) {
+      redireccion.cookies.set(cookie)
+    }
+    return redireccion
+  }
 
   return respuesta
 }

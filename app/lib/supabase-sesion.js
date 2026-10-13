@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -42,9 +43,13 @@ export async function clienteConSesion() {
 // getUser() y no getSession(): getSession lee la cookie y confía en lo que dice,
 // getUser la valida contra el servidor de auth. Para decidir qué mostrar o qué
 // permitir, la diferencia importa: una cookie se puede falsificar.
-export async function usuarioActual() {
+//
+// Envuelta en cache() de React: el Header y la página pueden preguntar las dos
+// quién está conectado y el servidor de auth se consulta una sola vez por
+// renderizado. No guarda nada entre pedidos ni entre personas.
+export const usuarioActual = cache(async () => {
   const supabase = await clienteConSesion()
   const { data, error } = await supabase.auth.getUser()
   if (error) return null
   return data.user ?? null
-}
+})
