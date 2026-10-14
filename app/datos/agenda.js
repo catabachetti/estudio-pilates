@@ -89,6 +89,16 @@ export function lunesDe(fecha) {
 }
 
 
+// Cuántos minutos faltan para que empiece una clase. Negativo si ya empezó.
+// Sale del reloj del estudio y no del servidor, igual que estaFinalizada: en
+// Vercel el servidor corre en UTC y daría tres horas de diferencia.
+export function minutosHasta(clave, hora) {
+  const ahora = ahoraEnElEstudio()
+  const dias =
+    (desdeClave(clave) - desdeClave(ahora.clave)) / (1000 * 60 * 60 * 24)
+  return dias * 24 * 60 + enMinutos(hora) - ahora.minutos
+}
+
 // Una clase está finalizada solo si es hoy y ya terminó. En los días que vienen
 // no hay clases finalizadas. La hora sale de ahoraEnElEstudio, no del reloj del
 // servidor, que en Vercel corre en UTC.

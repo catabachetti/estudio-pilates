@@ -31,6 +31,10 @@ export default async function Header() {
         <div className="header-sesion">
           {usuario ? (
             <>
+              <Link href="/cuenta" className="header-enlace">
+                Mi cuenta
+              </Link>
+
               {/* ESTO NO ES SEGURIDAD, ES COMODIDAD.
                   Esconder el enlace no protege el panel: quien sepa la
                   dirección la escribe igual, y el HTML de esta página lo lee

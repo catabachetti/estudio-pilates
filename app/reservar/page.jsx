@@ -1,15 +1,30 @@
 import Link from 'next/link'
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import { enlaceWhatsapp, HORAS_CANCELACION, CUPO_MAXIMO } from '../datos/sitio'
+import { enlaceWhatsapp, CUPO_MAXIMO } from '../datos/sitio'
 import {
-  aClave,
   desdeClave,
   diaCorto,
   estaFinalizada,
   rangoDeSemana,
+  sinSegundos,
   textoDeFecha,
 } from '../datos/agenda'
 import { agendaDeLaSemana } from '../lib/agenda-db'
+import { horasDeCancelacion } from '../lib/ajustes'
+import { usuarioActual } from '../lib/supabase-sesion'
+import { reservarClase } from '../acciones/reservas'
+
+// Lo que puede contestar reservar_clase(), traducido. `sin_creditos` no está
+// acá: no es un error de la persona sino un estado normal, y se muestra como un
+// bloque aparte que explica qué hacer.
+const RESULTADOS = {
+  ok: { tono: 'bien', texto: 'Listo, tu lugar está reservado. Lo ves en Mi cuenta.' },
+  completa: { tono: 'mal', texto: 'Esa clase se llenó mientras elegías. Probá con otro horario.' },
+  ya_reservada: { tono: 'mal', texto: 'Ya tenías reservada esa clase.' },
+  ya_paso: { tono: 'mal', texto: 'Esa clase ya empezó.' },
+  no_disponible: { tono: 'mal', texto: 'Esa clase ya no está disponible.' },
+  error: { tono: 'mal', texto: 'No pudimos reservar. Probá de nuevo.' },
+}
 
 // Sin revalidate a propósito: los cupos cambian con cada reserva, así que una
 // página cacheada aunque sea un minuto ya está mintiendo. Esta es la única
@@ -24,7 +39,14 @@ export const metadata = {
 
 export default async function ReservarPage({ searchParams }) {
   const parametros = await searchParams
-  const agenda = await agendaDeLaSemana(parametros?.dia)
+  const [agenda, usuario, horas] = await Promise.all([
+    agendaDeLaSemana(parametros?.dia),
+    usuarioActual(),
+    horasDeCancelacion(),
+  ])
+
+  const resultado = RESULTADOS[parametros?.r]
+  const sinCreditos = parametros?.r === 'sin_creditos'
 
   return (
     <main className="seccion">
@@ -34,16 +56,50 @@ export default async function ReservarPage({ searchParams }) {
           bajada="Elegí el día y después el horario que te quede cómodo. Para reservar necesitás un paquete activo."
         />
 
+        {resultado && (
+          <p
+            className={resultado.tono === 'bien' ? 'mensaje' : 'mensaje mensaje-error'}
+            role={resultado.tono === 'bien' ? 'status' : 'alert'}
+          >
+            {resultado.texto}
+          </p>
+        )}
+
+        {sinCreditos && <SinCreditos />}
+
         {agenda.error || agenda.sinAgenda ? (
-          <AgendaNoDisponible sinAgenda={agenda.sinAgenda} />
+          <AgendaNoDisponible sinAgenda={agenda.sinAgenda} horas={horas} />
         ) : (
           <>
             <TiraDeDias agenda={agenda} />
-            <ClasesDelDia clave={agenda.elegido} turnos={agenda.turnos} />
+            <ClasesDelDia
+              clave={agenda.elegido}
+              turnos={agenda.turnos}
+              usuario={usuario}
+              horas={horas}
+            />
           </>
         )}
       </div>
     </main>
+  )
+}
+
+// No es un error: es que todavía no compró. Por eso no sale como mensaje rojo
+// sino como un bloque que explica qué falta y lleva a comprarlo.
+function SinCreditos() {
+  return (
+    <section className="aviso">
+      <h2 className="titulo-seccion">Te faltan créditos</h2>
+      <p>
+        Cada clase que reservás usa un crédito, y ahora mismo no te queda
+        ninguno disponible. Comprá un paquete y volvé a este horario: el lugar
+        se reserva en el momento.
+      </p>
+      <Link href="/paquetes" className="boton boton-oscuro">
+        Ver paquetes
+      </Link>
+    </section>
   )
 }
 
@@ -98,7 +154,7 @@ function TiraDeDias({ agenda }) {
   )
 }
 
-function ClasesDelDia({ clave, turnos }) {
+function ClasesDelDia({ clave, turnos, usuario, horas }) {
   if (!clave || turnos.length === 0) {
     return (
       <section className="dia-detalle">
@@ -147,7 +203,12 @@ function ClasesDelDia({ clave, turnos }) {
                   </td>
                   <td>
                     {finalizada ? '' : (
-                      <AccionDeTurno turno={turno} hora={hora} clave={clave} />
+                      <AccionDeTurno
+                        turno={turno}
+                        hora={hora}
+                        clave={clave}
+                        usuario={usuario}
+                      />
                     )}
                   </td>
                 </tr>
@@ -156,38 +217,79 @@ function ClasesDelDia({ clave, turnos }) {
           </tbody>
         </table>
       </div>
+
+      {/* Acá y no solo en el bloque de error: el momento de enterarse de que se
+          puede cancelar sin costo es antes de reservar, no cuando algo falla.
+          La frase se arma entera en una expresión para que, cuando el ajuste no
+          se pueda leer, no quede un espacio suelto antes del punto. */}
+      <p className="nota">
+        {typeof horas === 'number'
+          ? `Cada reserva usa un crédito. Podés cancelar sin costo hasta ${horas} horas antes de la clase; pasada esa ventana, el crédito se pierde.`
+          : 'Cada reserva usa un crédito.'}
+      </p>
     </section>
   )
 }
 
-// PROVISORIO HASTA E5: la reserva todavía no se guarda en ningún lado, así que
-// el botón abre WhatsApp con la clase y la fecha ya escritas. Cuando exista el
-// formulario contra la base de datos, esto pasa a ser un submit.
-function AccionDeTurno({ turno, hora, clave }) {
+// El botón reserva de verdad. Sin JavaScript también: es un formulario que
+// manda un POST a una Server Action, que a su vez llama a reservar_clase().
+//
+// Los lugares que muestra esta tabla pueden estar desactualizados por segundos,
+// y está bien: el número de acá es informativo y el que decide es el de la
+// base, adentro de la transacción. Si la clase se llenó mientras alguien
+// elegía, la función contesta 'completa' y la página lo dice.
+function AccionDeTurno({ turno, hora, clave, usuario }) {
   const cuando = `el ${textoDeFecha(clave)} a las ${hora}`
-  const hayLugar = turno.lugares > 0
-  const mensaje = hayLugar
-    ? `Hola, quiero reservar ${turno.clase} ${cuando}.`
-    : `Hola, quiero anotarme en la lista de espera de ${turno.clase} ${cuando}.`
-  const texto = hayLugar ? 'Reservar' : 'Lista de espera'
+
+  if (turno.lugares === 0) {
+    return (
+      <a
+        href={enlaceWhatsapp(
+          `Hola, quiero anotarme en la lista de espera de ${turno.clase} ${cuando}.`
+        )}
+        className="enlace-tabla"
+        target="_blank"
+        rel="noopener"
+        aria-label={`Anotarme en la lista de espera de ${turno.clase} ${cuando}, por WhatsApp`}
+      >
+        Lista de espera
+      </a>
+    )
+  }
+
+  // Sin sesión no se puede reservar, pero el intento no se pierde: después de
+  // entrar vuelve a este mismo día.
+  if (!usuario) {
+    return (
+      <Link
+        href={`/ingresar?volver=${encodeURIComponent(`/reservar?dia=${clave}`)}`}
+        className="enlace-tabla"
+        aria-label={`Ingresar para reservar ${turno.clase} ${cuando}`}
+      >
+        Ingresar
+      </Link>
+    )
+  }
 
   return (
-    <a
-      href={enlaceWhatsapp(mensaje)}
-      className="enlace-tabla"
-      target="_blank"
-      rel="noopener"
-      aria-label={`${texto} ${turno.clase} ${cuando}, por WhatsApp`}
-    >
-      {texto}
-    </a>
+    <form action={reservarClase}>
+      <input type="hidden" name="clase_id" value={turno.clase_id} />
+      <input type="hidden" name="dia" value={clave} />
+      <button
+        type="submit"
+        className="enlace-tabla"
+        aria-label={`Reservar ${turno.clase} ${cuando}`}
+      >
+        Reservar
+      </button>
+    </form>
   )
 }
 
 // Acá no hay aviso suave ni tira a medias: si no se puede leer la
 // disponibilidad, no se ofrece ningún botón de reservar. Mostrar cupos que no
 // podemos verificar sería mentirle a alguien que está por reservar un lugar.
-function AgendaNoDisponible({ sinAgenda }) {
+function AgendaNoDisponible({ sinAgenda, horas }) {
   return (
     <section className="aviso">
       <h2 className="titulo-seccion">
@@ -208,16 +310,14 @@ function AgendaNoDisponible({ sinAgenda }) {
       >
         Consultar por WhatsApp
       </a>
+      {/* La frase se arma entera en una expresión y no partida en el JSX: con
+          el condicional suelto, cuando no hay horas que mostrar queda un
+          espacio antes del punto ("personas ."). */}
       <p className="nota">
-        Las clases son de hasta {CUPO_MAXIMO} personas y se pueden cancelar sin
-        costo hasta {HORAS_CANCELACION} horas antes.
+        {typeof horas === 'number'
+          ? `Las clases son de hasta ${CUPO_MAXIMO} personas y se pueden cancelar sin costo hasta ${horas} horas antes.`
+          : `Las clases son de hasta ${CUPO_MAXIMO} personas.`}
       </p>
     </section>
   )
-}
-
-// La base devuelve "07:00:00"; en pantalla va "7:00".
-function sinSegundos(hora) {
-  const [h, m] = hora.split(':')
-  return `${Number(h)}:${m}`
 }

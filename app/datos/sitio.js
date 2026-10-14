@@ -11,14 +11,28 @@
 // Datos del estudio que se afirman en varias páginas. Viven acá una sola vez
 // para que no puedan contradecirse entre sí.
 export const CUPO_MAXIMO = 6
-export const HORAS_CANCELACION = 6
 export const DIRECCION = {
   calle: 'Gorriti 4520',
   barrio: 'Palermo',
   ciudad: 'Ciudad de Buenos Aires',
 }
 
-export const condiciones = `Los créditos vencen según el paquete que compres y siempre se consume primero el que vence antes. Podés cancelar sin costo hasta ${HORAS_CANCELACION} horas antes de la clase; pasada esa ventana, el crédito se pierde.`
+// Las horas de cancelación ya no son una constante de este archivo: viven en
+// la tabla `ajustes` porque la función cancelar_reserva() de la base las
+// necesita para decidir si devuelve el crédito, y tenerlas también acá sería el
+// mismo número escrito a mano en dos lugares. Se leen con horasDeCancelacion()
+// de app/lib/ajustes.js y se pasan a esta función.
+//
+// Si el ajuste no se pudo leer, el texto sale sin la frase de cancelación en
+// vez de afirmar una regla inventada.
+export function condicionesCon(horas) {
+  const base =
+    'Los créditos vencen según el paquete que compres y siempre se consume primero el que vence antes.'
+
+  if (typeof horas !== 'number') return base
+
+  return `${base} Podés cancelar sin costo hasta ${horas} horas antes de la clase; pasada esa ventana, el crédito se pierde.`
+}
 
 export const navegacion = [
   { href: '/clases', texto: 'Clases' },

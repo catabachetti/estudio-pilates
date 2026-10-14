@@ -120,9 +120,7 @@ function Clase({ clase, fecha, tipos, instructoras }) {
           {' · '}
           {clase.instructoras?.nombre ?? 'Sin instructora'}
           {' · '}
-          {clase.reservas === null
-            ? `cupo ${clase.cupo_total}, no se pudieron contar las reservas`
-            : `${clase.reservas} de ${clase.cupo_total} ${clase.reservas === 1 ? 'lugar tomado' : 'lugares tomados'}`}
+          {textoDeOcupacion(clase, cancelada)}
         </p>
       </div>
 
@@ -161,6 +159,25 @@ function Clase({ clase, fecha, tipos, instructoras }) {
       </form>
     </li>
   )
+}
+
+// En una clase cancelada no hay lugares tomados: el disparador de la migración
+// 011 pasó sus reservas a canceladas y les devolvió el crédito. Pero esas
+// personas tenían un lugar y hay que avisarles, así que el número no puede
+// desaparecer de la pantalla: se muestra cuántas reservas quedaron liberadas.
+// Los nombres están en /admin/reservas, que lista también las canceladas.
+function textoDeOcupacion(clase, cancelada) {
+  if (clase.reservas === null) {
+    return `cupo ${clase.cupo_total}, no se pudieron contar las reservas`
+  }
+
+  if (cancelada) {
+    return clase.liberadas === 0
+      ? 'no tenía reservas'
+      : `${clase.liberadas} ${clase.liberadas === 1 ? 'reserva quedó liberada' : 'reservas quedaron liberadas'}`
+  }
+
+  return `${clase.reservas} de ${clase.cupo_total} ${clase.reservas === 1 ? 'lugar tomado' : 'lugares tomados'}`
 }
 
 function SelectorDeTipo({ clase, tipos }) {
@@ -308,21 +325,30 @@ async function leerDia(fecha) {
 async function conReservas(supabase, clases) {
   if (clases.length === 0) return []
 
+  // Se traen las dos: las confirmadas son los lugares tomados, y las canceladas
+  // son, en una clase cancelada, las personas a las que hay que avisarles.
   const { data, error } = await supabase
     .from('reservas')
-    .select('clase_id')
+    .select('clase_id, estado')
     .in('clase_id', clases.map((c) => c.id))
-    .eq('estado', 'confirmada')
 
   if (error) {
     console.error('No se pudieron contar las reservas:', error.message)
     // Se devuelve la lista igual: no saber cuántas reservas hay no es motivo
     // para esconder la agenda entera. El número queda en null y se nota.
-    return clases.map((c) => ({ ...c, reservas: null }))
+    return clases.map((c) => ({ ...c, reservas: null, liberadas: null }))
   }
 
-  const cuenta = new Map()
-  for (const r of data) cuenta.set(r.clase_id, (cuenta.get(r.clase_id) ?? 0) + 1)
+  const confirmadas = new Map()
+  const canceladas = new Map()
+  for (const r of data) {
+    const donde = r.estado === 'confirmada' ? confirmadas : canceladas
+    donde.set(r.clase_id, (donde.get(r.clase_id) ?? 0) + 1)
+  }
 
-  return clases.map((c) => ({ ...c, reservas: cuenta.get(c.id) ?? 0 }))
+  return clases.map((c) => ({
+    ...c,
+    reservas: confirmadas.get(c.id) ?? 0,
+    liberadas: canceladas.get(c.id) ?? 0,
+  }))
 }
