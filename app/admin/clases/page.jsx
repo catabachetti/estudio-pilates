@@ -1,16 +1,10 @@
-import Link from 'next/link'
 import SinPermiso from '../../components/SinPermiso'
+import NavegacionDeDia from '../../components/NavegacionDeDia'
 import { sesionAdmin } from '../../lib/autorizacion'
 import { clienteConSesion } from '../../lib/supabase-sesion'
 import { esFecha } from '../../lib/validacion'
 import { CUPO_MAXIMO } from '../../datos/sitio'
-import {
-  aClave,
-  desdeClave,
-  ahoraEnElEstudio,
-  sinSegundos,
-  textoDeFecha,
-} from '../../datos/agenda'
+import { ahoraEnElEstudio, sinSegundos } from '../../datos/agenda'
 import {
   crearClase,
   editarClase,
@@ -80,7 +74,7 @@ export default async function AdminClasesPage({ searchParams }) {
         </p>
       )}
 
-      <NavegacionDeDia fecha={fecha} />
+      <NavegacionDeDia base="/admin/clases" fecha={fecha} etiqueta="Navegación por día" />
 
       {falla ? (
         <div className="aviso">
@@ -109,26 +103,6 @@ export default async function AdminClasesPage({ searchParams }) {
         </>
       )}
     </>
-  )
-}
-
-function NavegacionDeDia({ fecha }) {
-  const corrida = (dias) => {
-    const f = desdeClave(fecha)
-    f.setDate(f.getDate() + dias)
-    return aClave(f)
-  }
-
-  return (
-    <nav className="admin-dia" aria-label="Navegación por día">
-      <Link href={`/admin/clases?fecha=${corrida(-1)}`} className="enlace-subrayado">
-        Día anterior
-      </Link>
-      <h2 className="admin-dia-titulo">{textoDeFecha(fecha)}</h2>
-      <Link href={`/admin/clases?fecha=${corrida(1)}`} className="enlace-subrayado">
-        Día siguiente
-      </Link>
-    </nav>
   )
 }
 

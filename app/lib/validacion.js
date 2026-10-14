@@ -45,6 +45,12 @@ export function aHora(valor) {
   return m ? `${m[1]}:${m[2]}` : null
 }
 
+// No valida que el correo exista, solo que tenga forma de correo. Lo único que
+// decide de verdad si un correo es real es mandarle un mensaje.
+export function esEmail(valor) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor ?? '').trim())
+}
+
 // UNA ESCRITURA RECHAZADA POR RLS NO DEVUELVE ERROR: devuelve que no modificó
 // ninguna fila, porque para la política esa fila no existe. Sin pedir de vuelta
 // lo actualizado con .select(), un rechazo de permisos se ve exactamente igual

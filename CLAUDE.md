@@ -72,6 +72,9 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 ## Qué revalidar después de escribir
 
 - **Paquetes** → `/paquetes` y `/`.
+- **Créditos y reservas** → nada. Esos datos no se muestran en ninguna página
+  pública: los créditos de alguien se ven en su cuenta y en el panel, y las dos
+  son dinámicas.
 - **Clases** → `revalidatePath('/', 'layout')`, o sea el sitio entero, porque
   `Footer.jsx` deriva el horario de atención de la tabla `clases` con
   `horariosDeAtencion()` y el footer está en el layout raíz. Cancelar la última
@@ -132,6 +135,14 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   Las llamadas a `revalidatePath` se dejan igual: limpian el Router Cache del
   navegador y son la línea que va a hacer falta el día que algo se cachee de
   verdad. Pero no son lo que hace visible un cambio hoy.
+
+- **No hay forma de quitar créditos desde el panel.** Se pueden otorgar y nada
+  más. Si alguien se equivoca —un doble clic, el paquete equivocado— hoy se
+  arregla solo desde el editor SQL de Supabase, borrando las filas de
+  `creditos` y la de `compras` que las agrupa. Es una deuda aceptable mientras
+  administre una sola persona que puede ver el total antes y después en la
+  pantalla, pero quitar créditos no es simétrico a otorgarlos: hay que decidir
+  qué pasa si ya se usaron para reservar, y esa decisión todavía no está tomada.
 
 - La validación del cupo contra las reservas ya tomadas se hace en la
   aplicación: se lee la cuenta y después se escribe. Entre las dos cosas

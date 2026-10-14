@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { clienteConSesion } from '../lib/supabase-sesion'
 import { rutaInterna } from '../lib/rutas'
+import { esEmail } from '../lib/validacion'
 
 // Acciones de entrar y salir.
 //
@@ -22,7 +23,7 @@ const MINIMO_CONTRASENA = 8
 // el pedido a mano, así que acá se vuelve a mirar todo.
 function validar({ email, contrasena, nombre }) {
   if (nombre !== undefined && nombre.trim().length === 0) return 'nombre'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email ?? '')) return 'email'
+  if (!esEmail(email)) return 'email'
   if ((contrasena ?? '').length < MINIMO_CONTRASENA) return 'contrasena'
   return null
 }

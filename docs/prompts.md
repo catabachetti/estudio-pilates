@@ -480,6 +480,83 @@ principio.
 
 ---
 
+## 2026-10-14 — Panel: reservas y créditos
+
+**Prompt:** `/admin/reservas` de solo lectura y `/admin/creditos` con las dos
+funciones del plan original, pensando desde el principio en que el webhook de
+Mercado Pago va a reutilizar la segunda.
+
+### Hallazgo: PostgREST no puede unir `reservas` con `perfiles`
+
+El enunciado decía que las políticas de RLS ya alcanzaban, y es cierto. Pero al
+probar la consulta antes de escribir la página apareció otra cosa:
+
+```
+reservas?select=id,estado,perfiles(nombre)
+→ PGRST200: Searched for a foreign key relationship between 'reservas' and
+  'perfiles' in the schema 'public', but no matches were found.
+```
+
+`reservas.user_id` apunta a `auth.users(id)` y `perfiles.id` también, pero no
+hay clave ajena entre las dos, así que PostgREST no tiende el puente. Lo que sí
+funciona es `reservas -> clases -> tipos_clase`, que son claves ajenas de
+verdad, con `!inner` para que el filtro por fecha de la clase recorte las
+reservas.
+
+**Decisión:** dos consultas unidas en JavaScript, sin tocar el esquema. La
+alternativa era agregar una segunda clave ajena redundante sobre la misma
+columna solo para que PostgREST tuviera por dónde ir.
+
+### La idempotencia del webhook, resuelta en la base y no en el código
+
+Mercado Pago reintenta los avisos de pago cuando no recibe respuesta a tiempo,
+así que `otorgar_creditos` se va a llamar más de una vez para el mismo pago. La
+protección no está en el código que llama sino en el `unique` de
+`compras.mp_payment_id`, que existía desde la migración 001 sin usarse:
+
+```sql
+insert into public.compras (...) values (...)
+on conflict (mp_payment_id) do nothing
+returning id into v_compra;
+
+if v_compra is null then
+  -- el aviso es un reintento: se sale sin acreditar nada
+```
+
+Es atómico —dos avisos simultáneos, uno solo entra— y no se puede olvidar de
+chequear, porque no hay nada que chequear. Un `select ... if not exists` desde
+el servidor habría corrido exactamente la carrera que esto evita.
+
+Por eso la función recibe el identificador del pago aunque el panel se lo pase
+en `null`: con el parámetro afuera, la protección habría tenido que vivir en
+cada quien que la invoque.
+
+**Y los nulos no chocan entre sí en un índice único de Postgres**, así que dos
+cargas manuales nunca se bloquean. Es lo correcto: dos cargas manuales son dos
+paquetes.
+
+### Decisión: el vencimiento no sale de `current_date`
+
+El servidor de Supabase corre en UTC y a las 22 de Buenos Aires allá ya es el
+día siguiente, así que `current_date + dias_vigencia` daría un crédito que vence
+un día antes de lo que corresponde. Va con la zona explícita, igual que
+`ahoraEnElEstudio()` en el código.
+
+### Lo que no se puede verificar todavía
+
+El guardia de `otorgar_creditos` admite `es_admin()` **o**
+`current_user = 'service_role'`, porque el webhook va a correr sin sesión. Esa
+segunda mitad no se puede probar hasta que exista el webhook y esté cargada la
+clave de servicio. Si PostgREST se conecta con otro nombre de rol, la función va
+a rechazar al webhook: falla ruidosa y no silenciosa, que es el lado correcto
+para equivocarse.
+
+**Predicción:**
+
+**Aprendizaje:**
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título
