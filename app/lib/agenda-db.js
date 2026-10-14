@@ -19,6 +19,10 @@ export async function agendaDeLaSemana(diaPedido) {
   const { data: ultima, error: errorUltima } = await supabase
     .from('clases')
     .select('fecha')
+    // Solo programadas: un día con todas sus clases canceladas no es un día con
+    // agenda, y no tiene que correr el final del calendario ni aparecer en la
+    // tira. La función disponibilidad_del_dia ya filtra igual desde la 009.
+    .eq('estado', 'programada')
     .order('fecha', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -52,6 +56,7 @@ export async function agendaDeLaSemana(diaPedido) {
   const { data: filas, error: errorDias } = await supabase
     .from('clases')
     .select('fecha')
+    .eq('estado', 'programada')
     .gte('fecha', desde)
     .lte('fecha', aClave(domingo))
     .order('fecha')

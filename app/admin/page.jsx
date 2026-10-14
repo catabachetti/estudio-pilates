@@ -31,6 +31,14 @@ export default async function AdminPage() {
       <ul className="admin-tablero">
         <li className="admin-acceso">
           <h3 className="admin-acceso-titulo">
+            <Link href="/admin/clases" className="enlace-subrayado">
+              Clases
+            </Link>
+          </h3>
+          <p>La agenda de cada día: crear, editar, cancelar y reactivar.</p>
+        </li>
+        <li className="admin-acceso">
+          <h3 className="admin-acceso-titulo">
             <Link href="/admin/paquetes" className="enlace-subrayado">
               Paquetes
             </Link>
@@ -41,9 +49,9 @@ export default async function AdminPage() {
 
       <h2 className="seccion-titulo">Todavía no</h2>
       <p className="seccion-texto">
-        Las clases, las reservas y los créditos se siguen manejando desde
-        Supabase hasta que estén sus pantallas. No están enlazadas acá para no
-        ofrecer una puerta que no abre.
+        Las reservas y los créditos se siguen manejando desde Supabase hasta que
+        estén sus pantallas. No están enlazadas acá para no ofrecer una puerta
+        que no abre.
       </p>
     </>
   )
@@ -63,7 +71,11 @@ async function contar() {
 
   const [paquetes, clases, reservas] = await Promise.all([
     supabase.from('paquetes').select('*', { count: 'exact', head: true }).eq('activo', true),
-    supabase.from('clases').select('*', { count: 'exact', head: true }).gte('fecha', desde),
+    supabase
+      .from('clases')
+      .select('*', { count: 'exact', head: true })
+      .eq('estado', 'programada')
+      .gte('fecha', desde),
     supabase.from('reservas').select('*', { count: 'exact', head: true }).eq('estado', 'confirmada'),
   ])
 
@@ -73,7 +85,7 @@ async function contar() {
 
   return [
     { rotulo: 'Paquetes a la venta', valor: paquetes.count },
-    { rotulo: 'Clases de hoy en adelante', valor: clases.count },
+    { rotulo: 'Clases programadas de hoy en adelante', valor: clases.count },
     { rotulo: 'Reservas confirmadas', valor: reservas.count },
   ]
 }

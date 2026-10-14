@@ -388,24 +388,91 @@ esa regla dejaba la cuarta tarjeta sola y corrida. Reemplazada por cuatro
 columnas que bajan a dos y a una, sin reglas por posición. La grilla de la home
 tenía `repeat(5, 1fr)` fijo y pasó a `auto-fit`.
 
-### Hallazgo 5: la home cachea su catálogo por un año
+### Hallazgo 5, y la corrección que lo dio vuelta
 
-Al verificar que `revalidatePath` hiciera falta de verdad, apareció que
-`app/page.jsx` no declara `revalidate`. Sus `fetch` quedan entonces en el Data
-Cache con `revalidate: 31536000`, un año. Se ve en `.next/cache/fetch-cache`
-después de un build: la consulta de `/paquetes` guarda 3600 y la de la home,
-31536000.
+Al revisar si `revalidatePath` hacía falta de verdad apareció que
+`app/page.jsx` no declara `revalidate`, y que `.next/cache/fetch-cache` guarda
+después de un build la consulta de `/paquetes` con `revalidate: 3600` y la de
+la home con `31536000`, un año. De ahí se concluyó que sin `revalidatePath('/')`
+un precio editado no aparecería nunca en la home.
 
-O sea que `revalidatePath('/')` en las acciones del panel no es una precaución
-de más: sin esa línea un precio editado aparece en `/paquetes` dentro de la hora
-y en la home **nunca**.
+**Esa conclusión era falsa, y lo demostró la contraprueba.** Se sacó el
+`revalidatePath('/', 'layout')` de la acción de clases, se recompiló, se sirvió
+con `next start` y se reactivó una clase: el pie de página se actualizó igual.
+Para descartar que algo más estuviera revalidando, se hizo la prueba decisiva —
+escribir **directo en la base**, sin pasar por Next:
 
-**Cómo se detectó:** dudando de una afirmación propia. El texto del panel decía
-"sin esperar la hora de caché", y como las rutas figuran todas como dinámicas en
-el build, no estaba claro que hubiera caché que invalidar. Los tiempos de
-respuesta no alcanzaron para decidirlo (165 ms contra 140 ms de una página sin
-consulta, dentro del ruido del modo dev). Lo decidió mirar el contenido de
-`.next/cache/fetch-cache`.
+| escritura directa en la base | lo que mostró la página siguiente |
+| ---------------------------- | --------------------------------- |
+| cancelar una clase de 21:00  | el pie pasó de "7:00 a 22:00" a "7:00 a 21:00" |
+| cambiar un precio a 64999    | `/paquetes` mostró $ 64.999       |
+
+Sin que nadie llamara a `revalidatePath`. O sea que **no hay caché de datos que
+invalidar**: todas las rutas son dinámicas porque el header lee cookies, y las
+lecturas de Supabase se hacen en cada pedido. El `revalidate = 3600` de
+`/paquetes` tampoco alcanza a esas lecturas.
+
+**El error de método:** las entradas de `.next/cache/fetch-cache` las escribe el
+*build*, no el servidor en caliente. Verlas ahí no prueba que la página se sirva
+desde ahí. Se tomó un artefacto de compilación como evidencia del
+comportamiento en ejecución.
+
+Las llamadas a `revalidatePath` quedaron igual —limpian el Router Cache del
+navegador, y son la línea que va a hacer falta el día que algo se cachee de
+verdad— pero con el comentario corregido en los dos archivos de acciones, para
+que nadie vuelva a leer ahí una garantía que hoy no existe.
+
+**Predicción:**
+
+**Aprendizaje:**
+
+---
+
+## 2026-10-13 — Panel: la agenda de clases
+
+**Prompt:** `/admin/clases` con listado por fecha, alta, edición de tipo,
+instructora y cupo, cancelación que no borre, y reactivación. Más la deuda de
+`incluye` y `orden` de paquetes, que habían quedado sin interfaz.
+
+### Hallazgo: cancelar una clase cambia el pie de página de todo el sitio
+
+El pedido decía revalidar `/reservar` y `/horarios`, y preguntaba si la home
+también. Buscando quién lee la tabla `clases` aparecieron cuatro lectores, y el
+cuarto no estaba en la lista: `Footer.jsx` llama a `horariosDeAtencion()`, que
+deriva el horario de atención de la grilla de clases. El footer vive en el
+layout raíz, o sea en **todas** las páginas.
+
+Cancelar la última clase de las 7 de un día corre el horario de apertura, y eso
+se ve en el pie de `/contacto`, de `/terminos` y del resto. Revalidar solo las
+dos páginas de la agenda habría dejado un horario viejo en todo lo demás.
+
+**Corrección aplicada:** las acciones de clases usan
+`revalidatePath('/', 'layout')`, que invalida el layout raíz y todo lo que
+cuelga de él.
+
+**Cómo se detectó:** haciendo `grep` de `from('clases')` y de las funciones que
+la envuelven antes de escribir las acciones, en vez de confiar en la lista del
+enunciado.
+
+### Decisión: el unique (fecha, hora) se deja como está
+
+Una clase cancelada sigue ocupando su horario, así que no se puede crear otra
+distinta ese día a esa hora: hay que reactivar esa. Es la opción correcta
+porque esa fila tiene reservas colgando, y dos clases a la misma hora dejaría a
+esas personas sin saber a cuál van. Queda anotado en `CLAUDE.md` porque
+sorprende a quien no lo sepa, y el mensaje de error lo dice en castellano en
+vez de mostrar el `23505` de Postgres.
+
+### Deuda registrada: la carrera del cupo
+
+Rechazar un cupo menor a las reservas ya tomadas se hace leyendo la cuenta y
+escribiendo después, en dos viajes. Entre uno y otro alguien podría reservar.
+Con seis lugares y una sola persona administrando, la ventana es teórica.
+
+Lo que importa es lo que viene: **la misma carrera, en las reservas, sí
+importa** —dos personas tomando el último lugar al mismo tiempo— y ahí la
+verificación y la escritura tienen que ir en una sola sentencia desde el
+principio.
 
 **Predicción:**
 

@@ -69,6 +69,20 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   ninguna fila. Toda actualización del panel termina en `.select()` para
   distinguir "no tenía permiso" de "guardado".
 
+## Qué revalidar después de escribir
+
+- **Paquetes** → `/paquetes` y `/`.
+- **Clases** → `revalidatePath('/', 'layout')`, o sea el sitio entero, porque
+  `Footer.jsx` deriva el horario de atención de la tabla `clases` con
+  `horariosDeAtencion()` y el footer está en el layout raíz. Cancelar la última
+  clase de las 7 de un día cambia el pie de `/contacto` y de `/terminos`: eso
+  está verificado. Lo que **no** es cierto es que esa llamada sea hoy lo que lo
+  hace visible — ver la deuda sobre el caché más abajo.
+- Antes de agregar una escritura nueva, buscar quién lee esa tabla. Hoy
+  `clases` la leen cuatro: `agendaDeLaSemana()` en `/reservar`, `semanaTipo()`
+  en `/horarios` y en la home, `horariosDeAtencion()` en el footer, y el
+  tablero.
+
 ## Alcance descartado
 
 Lo que se decidió no hacer, para que no se confunda con un olvido.
@@ -101,17 +115,29 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   dejen de ser experimentales, migrar: hoy un monitoreo externo ve errores de
   servidor donde hubo rechazos de permisos.
 
-- **La home cachea su catálogo por un año.** `app/page.jsx` no declara
-  `revalidate`, así que los `fetch` que hacen sus componentes quedan en el
-  Data Cache con `revalidate: 31536000`. Se puede comprobar en
-  `.next/cache/fetch-cache` después de un build. Por eso `revalidatePath('/')`
-  no es opcional en las acciones del panel: sin esa línea, un precio editado
-  aparece en `/paquetes` dentro de la hora, y en la home **nunca**. Cuando el
-  panel edite clases o tipos de clase, esas acciones necesitan lo mismo.
+- Cancelar una clase cambia su estado y **no** libera el horario: el
+  `unique (fecha, hora)` sigue valiendo para la fila cancelada, así que no se
+  puede crear otra clase ese día a esa hora. Hay que reactivar esa. Es a
+  propósito —esa fila tiene reservas colgando— pero sorprende si no se sabe.
 
-- El panel de paquetes edita nombre, precio, clases y vigencia, y activa o
-  desactiva. **No** edita `incluye` (la descripción de la tarjeta) ni `orden`.
-  Esos dos siguen cambiándose desde Supabase, y como `seed.sql` ya no se puede
-  volver a correr, hoy no tienen ninguna interfaz propia. **A resolver junto con
-  `/admin/clases`**, que es la misma clase de formulario: campos de texto y un
-  número sobre una fila que ya existe.
+- **Hoy no hay caché de datos, y `revalidate = 3600` no hace nada.** Medido
+  sobre el sitio compilado y servido con `next start`: una escritura hecha
+  directo en la base, sin que ninguna acción llame a `revalidatePath`, ya se ve
+  en el pedido siguiente, tanto en el pie de página como en `/paquetes`. Todas
+  las rutas son dinámicas porque el header lee cookies, y las lecturas de
+  Supabase no entran al Data Cache.
+  Las entradas que aparecen en `.next/cache/fetch-cache` después de un build
+  son del build, no de lo que se sirve en caliente: **no alcanza con verlas ahí
+  para concluir que una página está cacheada.**
+  Las llamadas a `revalidatePath` se dejan igual: limpian el Router Cache del
+  navegador y son la línea que va a hacer falta el día que algo se cachee de
+  verdad. Pero no son lo que hace visible un cambio hoy.
+
+- La validación del cupo contra las reservas ya tomadas se hace en la
+  aplicación: se lee la cuenta y después se escribe. Entre las dos cosas
+  alguien podría reservar y el cupo quedaría uno por debajo. Con seis lugares y
+  una sola persona administrando, la ventana es teórica.
+  **Pero la misma carrera, en las reservas, no lo es:** dos personas tomando el
+  último lugar al mismo tiempo. Cuando se escriba esa pantalla, la verificación
+  y la escritura tienen que ir en una sola sentencia desde el principio, en una
+  función `security definer`, no en dos viajes desde el servidor.

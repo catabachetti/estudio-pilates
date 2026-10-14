@@ -60,6 +60,14 @@ export function textoDeFecha(clave) {
   return `${DIAS[f.getDay()]} ${f.getDate()} de ${MESES[f.getMonth()]}`
 }
 
+// La base devuelve "07:00:00" y en pantalla se lee mejor "7:00". Vive acá,
+// con el resto del formato de fechas y horas, porque lo usan la grilla pública
+// y el panel: la forma de escribir una hora se decide en un solo lugar.
+export function sinSegundos(hora) {
+  const [h, m] = hora.split(':')
+  return `${Number(h)}:${m}`
+}
+
 export function diaCorto(fecha) {
   return DIAS_CORTOS[fecha.getDay()]
 }
