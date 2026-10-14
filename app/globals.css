@@ -1631,3 +1631,28 @@ a.tira-dia-elegido:hover {
     text-align: left;
   }
 }
+
+/* ---------- panel: creditos ---------- */
+
+.admin-persona {
+  margin-top: var(--aire);
+  padding-top: 40px;
+  border-top: 1px solid var(--arena);
+}
+
+/* El resumen de creditos usa las mismas tarjetas de numero del tablero: es el
+   mismo tipo de dato y no hay razon para que se vea distinto. */
+.admin-persona .admin-numeros {
+  margin-bottom: 40px;
+}
+
+.admin-vencimientos {
+  margin-top: 12px;
+  margin-bottom: 40px;
+  color: var(--gris);
+}
+
+.admin-otorgar {
+  padding-top: 32px;
+  border-top: 1px solid var(--arena);
+}

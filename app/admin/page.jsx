@@ -39,20 +39,29 @@ export default async function AdminPage() {
         </li>
         <li className="admin-acceso">
           <h3 className="admin-acceso-titulo">
+            <Link href="/admin/reservas" className="enlace-subrayado">
+              Reservas
+            </Link>
+          </h3>
+          <p>Quién viene cada día. Solo lectura.</p>
+        </li>
+        <li className="admin-acceso">
+          <h3 className="admin-acceso-titulo">
             <Link href="/admin/paquetes" className="enlace-subrayado">
               Paquetes
             </Link>
           </h3>
           <p>Precios, cantidad de clases, vigencia, y cuáles se ofrecen.</p>
         </li>
+        <li className="admin-acceso">
+          <h3 className="admin-acceso-titulo">
+            <Link href="/admin/creditos" className="enlace-subrayado">
+              Créditos
+            </Link>
+          </h3>
+          <p>Acreditar un paquete a mano, para pagos fuera de Mercado Pago.</p>
+        </li>
       </ul>
-
-      <h2 className="seccion-titulo">Todavía no</h2>
-      <p className="seccion-texto">
-        Las reservas y los créditos se siguen manejando desde Supabase hasta que
-        estén sus pantallas. No están enlazadas acá para no ofrecer una puerta
-        que no abre.
-      </p>
     </>
   )
 }

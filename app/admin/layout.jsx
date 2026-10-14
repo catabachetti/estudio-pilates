@@ -30,7 +30,13 @@ export default async function AdminLayout({ children }) {
                 <Link href="/admin/clases">Clases</Link>
               </li>
               <li>
+                <Link href="/admin/reservas">Reservas</Link>
+              </li>
+              <li>
                 <Link href="/admin/paquetes">Paquetes</Link>
+              </li>
+              <li>
+                <Link href="/admin/creditos">Créditos</Link>
               </li>
             </ul>
           </nav>
