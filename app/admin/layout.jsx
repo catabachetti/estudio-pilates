@@ -27,6 +27,9 @@ export default async function AdminLayout({ children }) {
                 <Link href="/admin">Tablero</Link>
               </li>
               <li>
+                <Link href="/admin/clases">Clases</Link>
+              </li>
+              <li>
                 <Link href="/admin/paquetes">Paquetes</Link>
               </li>
             </ul>

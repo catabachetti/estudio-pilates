@@ -1,5 +1,5 @@
 import { clienteSupabase } from './supabase'
-import { aClave, desdeClave, hoy } from '../datos/agenda'
+import { aClave, desdeClave, hoy, sinSegundos } from '../datos/agenda'
 
 const DIAS_A_MIRAR = 14
 
@@ -21,6 +21,9 @@ export async function semanaTipo() {
   const { data, error } = await clienteSupabase()
     .from('clases')
     .select('fecha, hora, tipos_clase (nombre, duracion_min)')
+    // Las canceladas no entran en la semana tipo: la clase sigue existiendo en
+    // la base por sus reservas, pero el estudio ya no la da.
+    .eq('estado', 'programada')
     .gte('fecha', aClave(desde))
     .lte('fecha', aClave(hasta))
     .order('fecha')
@@ -75,12 +78,6 @@ export async function semanaTipo() {
     }))
 
   return { bloques, error: null }
-}
-
-// La base devuelve "07:00:00"; la grilla se lee mejor como "7:00".
-function sinSegundos(hora) {
-  const [h, m] = hora.split(':')
-  return `${Number(h)}:${m}`
 }
 
 function enMinutos(hora) {

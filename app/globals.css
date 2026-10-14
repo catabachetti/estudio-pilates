@@ -1352,7 +1352,9 @@ a.tira-dia-elegido:hover {
   color: var(--tierra-oscuro);
 }
 
-.campo input {
+.campo input,
+.campo select,
+.campo textarea {
   font-family: inherit;
   font-size: 1rem;
   font-weight: 300;
@@ -1361,9 +1363,17 @@ a.tira-dia-elegido:hover {
   border: 1px solid var(--arena);
   border-radius: 2px;
   padding: 12px 14px;
+  width: 100%;
 }
 
-.campo input:focus-visible {
+.campo textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.campo input:focus-visible,
+.campo select:focus-visible,
+.campo textarea:focus-visible {
   outline: 2px solid var(--tierra-oscuro);
   outline-offset: 1px;
 }
@@ -1561,5 +1571,63 @@ a.tira-dia-elegido:hover {
 @media (max-width: 560px) {
   .admin-formulario {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- panel: agenda de clases ---------- */
+
+/* Dia anterior / fecha / dia siguiente. El titulo va en el medio y los dos
+   enlaces en los extremos, asi que la fecha queda siempre en el mismo lugar
+   aunque cambie de largo. */
+.admin-dia {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 40px 0 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--arena);
+}
+
+.admin-dia-titulo {
+  font-size: 1.1rem;
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+
+/* Una clase cancelada sigue en la lista, con sus reservas a la vista, pero
+   tiene que leerse de un vistazo que ya no se da. El tachado va solo en el
+   titulo: tachar el formulario entero lo haria ilegible, y los campos siguen
+   sirviendo. */
+.admin-item-cancelado {
+  background-color: var(--crema);
+}
+
+.admin-item-cancelado .admin-item-titulo {
+  text-decoration: line-through;
+  color: var(--gris);
+}
+
+.admin-nueva {
+  margin-top: var(--aire);
+  padding-top: 40px;
+  border-top: 1px solid var(--arena);
+}
+
+/* Para el unico campo de texto largo: en una columna de la grilla no se puede
+   leer lo que se escribe. */
+.campo-ancho {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .admin-dia {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .admin-dia-titulo {
+    text-align: left;
   }
 }

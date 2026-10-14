@@ -9,6 +9,8 @@ const MENSAJES = {
   precio: 'El precio tiene que ser un número entero mayor que cero, sin puntos ni centavos.',
   clases: 'La cantidad de clases tiene que ser un número entero mayor que cero.',
   vigencia: 'La vigencia tiene que ser un número entero de días mayor que cero.',
+  incluye: 'La descripción no puede pasar de 200 caracteres.',
+  orden: 'El orden tiene que ser un número entero de cero para arriba.',
   repetido: 'Ya hay otro paquete con ese nombre.',
   permiso: 'La base rechazó el cambio: tu cuenta no tiene permiso para editar el catálogo.',
   guardar: 'No pudimos guardar el cambio. Probá de nuevo.',
@@ -34,7 +36,7 @@ export default async function AdminPaquetesPage({ searchParams }) {
   const supabase = await clienteConSesion()
   const { data: paquetes, error: errorLectura } = await supabase
     .from('paquetes')
-    .select('id, nombre, clases, precio, dias_vigencia, activo')
+    .select('id, nombre, clases, precio, dias_vigencia, incluye, orden, activo')
     .order('orden')
 
   if (errorLectura) {
@@ -137,6 +139,40 @@ export default async function AdminPaquetesPage({ searchParams }) {
                     step={1}
                     required
                   />
+                </div>
+
+                <div className="campo">
+                  <label htmlFor={`orden-${paquete.id}`}>Orden</label>
+                  <input
+                    type="number"
+                    id={`orden-${paquete.id}`}
+                    name="orden"
+                    defaultValue={paquete.orden}
+                    min={0}
+                    step={1}
+                    required
+                    aria-describedby={`ayuda-orden-${paquete.id}`}
+                  />
+                  <p id={`ayuda-orden-${paquete.id}`} className="campo-ayuda">
+                    De menor a mayor, como se listan en el sitio.
+                  </p>
+                </div>
+
+                {/* Ocupa el ancho entero de la grilla: es el único campo de
+                    texto largo y en una columna angosta no se puede leer lo
+                    que se escribe. */}
+                <div className="campo campo-ancho">
+                  <label htmlFor={`incluye-${paquete.id}`}>Descripción</label>
+                  <textarea
+                    id={`incluye-${paquete.id}`}
+                    name="incluye"
+                    defaultValue={paquete.incluye ?? ''}
+                    maxLength={200}
+                    rows={2}
+                  />
+                  <p className="campo-ayuda">
+                    La frase que aparece en la tarjeta, debajo del precio.
+                  </p>
                 </div>
 
                 <button type="submit" className="boton boton-oscuro">
