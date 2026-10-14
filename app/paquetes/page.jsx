@@ -1,5 +1,6 @@
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import { condiciones, precioEnPesos, enlaceWhatsapp } from '../datos/sitio'
+import { condicionesCon, precioEnPesos, enlaceWhatsapp } from '../datos/sitio'
+import { horasDeCancelacion } from '../lib/ajustes'
 import { clienteSupabase } from '../lib/supabase'
 
 export const revalidate = 3600
@@ -11,6 +12,8 @@ export const metadata = {
 }
 
 export default async function PaquetesPage() {
+  const horas = await horasDeCancelacion()
+
   const { data: paquetes, error } = await clienteSupabase()
     .from('paquetes')
     .select('id, nombre, clases, precio, dias_vigencia, incluye')
@@ -59,7 +62,7 @@ export default async function PaquetesPage() {
 
         <section className="condiciones">
           <h2 className="seccion-titulo">Condiciones</h2>
-          <p className="seccion-texto">{condiciones}</p>
+          <p className="seccion-texto">{condicionesCon(horas)}</p>
         </section>
       </div>
     </main>

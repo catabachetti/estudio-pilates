@@ -552,15 +552,25 @@ button.header-enlace {
   letter-spacing: 0.04em;
 }
 
-.enlace-tabla {
+/* El de reservar es un <button> y no un <a>, porque manda un formulario: un
+   boton no hereda tipografia ni color, asi que van explicitos. */
+.enlace-tabla,
+button.enlace-tabla {
+  font-family: inherit;
   font-size: 0.72rem;
+  font-weight: inherit;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  color: inherit;
+  background: none;
+  border: 0;
   border-bottom: 1px solid var(--tierra);
-  padding-bottom: 2px;
+  padding: 0 0 2px;
+  cursor: pointer;
 }
 
-.enlace-tabla:hover {
+.enlace-tabla:hover,
+button.enlace-tabla:hover {
   color: var(--tierra-oscuro);
 }
 
@@ -1655,4 +1665,82 @@ a.tira-dia-elegido:hover {
 .admin-otorgar {
   padding-top: 32px;
   border-top: 1px solid var(--arena);
+}
+
+/* ---------- mi cuenta ---------- */
+
+.cuenta-bloque {
+  margin-bottom: var(--aire);
+}
+
+.cuenta-numero {
+  font-size: 3rem;
+  line-height: 1;
+  font-variant-numeric: lining-nums tabular-nums;
+  margin-bottom: 12px;
+}
+
+.cuenta-numero span {
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--tierra-oscuro);
+}
+
+.cuenta-vencimientos {
+  margin-bottom: 16px;
+  color: var(--gris);
+}
+
+.cuenta-reservas {
+  display: grid;
+  gap: 16px;
+  max-width: 680px;
+}
+
+/* La fecha a la izquierda y la cancelacion a la derecha, para que el boton de
+   cancelar nunca quede pegado al texto de la clase. */
+.cuenta-reserva {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--arena);
+  background-color: var(--blanco);
+}
+
+.cuenta-reserva-cuando {
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.cuenta-reserva-pasada {
+  background-color: transparent;
+  color: var(--gris);
+}
+
+.cuenta-cancelar {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+  text-align: right;
+}
+
+.cuenta-cancelar .boton {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+@media (max-width: 560px) {
+  .cuenta-reserva {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cuenta-cancelar {
+    justify-items: start;
+    text-align: left;
+  }
 }

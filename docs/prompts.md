@@ -557,6 +557,115 @@ para equivocarse.
 
 ---
 
+## 2026-10-14 — La reserva real
+
+**Prompt:** el botón de `/reservar` deja de abrir WhatsApp y escribe en la base,
+con todo en una sola función: verificar clase, cupo y crédito, y escribir, o no
+hacer nada. Más `/cuenta`, la cancelación con su ventana, y la ventana mudada
+de `sitio.js` a la base.
+
+### Fallo: `/cuenta` le mostraba a administración las reservas ajenas
+
+La consulta de reservas no filtraba por `user_id`, con este comentario al lado:
+
+> RLS devuelve solo las suyas, así que no hace falta filtrar por user_id: la
+> política ya dice `user_id = auth.uid()`.
+
+**El comentario era falso.** La política dice
+`user_id = auth.uid() or public.es_admin()`. Para una cuenta común RLS alcanza;
+para una de administración devuelve las reservas de todo el mundo, y `/cuenta`
+se las mostraba como propias.
+
+**Cómo se detectó:** probando la carrera con las dos cuentas. El admin había
+ganado cuatro de las cinco y la pantalla le mostraba cinco reservas. El número
+no cerraba con el resultado de la carrera.
+
+Lo que lo hizo visible fue haber probado con una cuenta de administración. Con
+dos cuentas comunes el fallo no aparece nunca.
+
+**Corrección aplicada:** `.eq('user_id', userId)` explícito, con el motivo
+escrito. Y la regla general en `CLAUDE.md`: una política con `or es_admin()` no
+filtra por persona, así que toda pantalla de "mis cosas" filtra igual.
+
+### La carrera, probada dos veces y en dos niveles
+
+**En SQL**, con dos transacciones y `pg_sleep`: Ana toma el candado y lo
+sostiene tres segundos, Bea queda esperando **2,0 segundos** y recibe
+`completa`. Una sola reserva confirmada.
+
+**En la aplicación de verdad**, atravesando la Server Action, el cliente de
+Supabase y PostgREST: cinco clases de un solo lugar, las dos cuentas apretando
+"Reservar" en paralelo.
+
+| intento | admin | cliente | confirmadas |
+| ------- | ----- | ------- | ----------- |
+| 1 | ok | completa | 1 |
+| 2 | ok | completa | 1 |
+| 3 | **completa** | **ok** | 1 |
+| 4 | ok | completa | 1 |
+| 5 | ok | completa | 1 |
+
+El intento 3 importa: el ganador alternó, así que es una carrera de verdad y no
+un orden fijo del servidor. El invariante se mantuvo en las cinco.
+
+### El `sinCambios` mordiendo al arnés de prueba
+
+Para probar `sin_creditos` se intentó vencer los créditos del cliente con un
+PATCH al REST, poniéndoles una fecha pasada. Después se pidió una reserva,
+esperando `sin_creditos`.
+
+**La reserva salió `ok`.**
+
+La lectura inmediata es que la función estaba mal: que no miraba `vence_el`, o
+que la condición estaba invertida. Lo que pasó fue otra cosa. `creditos` no
+tiene política de UPDATE —solo de SELECT, desde la migración 003— así que el
+PATCH afectó **cero filas en silencio**, devolvió 200, y los créditos siguieron
+vigentes. La función hizo exactamente lo que tenía que hacer con los datos que
+había.
+
+Es el mismo `sinCambios` ya documentado dos veces en este registro, pero esta
+vez del otro lado: no en el código de la aplicación sino en el arnés que lo
+prueba. Y acá es peor, porque el arnés no tiene a nadie que lo revise.
+
+**Lo que lo salvó fue mirar el resultado de la reserva y no creerle.** Si se
+hubiera dado por sentado que el PATCH funcionó, la conclusión habría sido que
+`reservar_clase()` está rota, y el paso siguiente habría sido "arreglar" una
+función que no tenía nada malo.
+
+**Regla que queda:** cuando un paso de preparación escribe en la base, hay que
+verificar que escribió, no suponerlo. Un 200 de PostgREST no dice que algo
+cambió.
+
+Se resolvió registrando una cuenta nueva sin créditos, que además es el caso
+real: alguien que se registra y entra a reservar antes de comprar.
+
+### Decisión: el texto no afirma lo que no puede verificar
+
+Si la tabla `ajustes` no se puede leer, `condicionesCon()` devuelve el texto
+**sin la frase de cancelación**, en vez de un número por omisión. Probado
+rompiendo la consulta a propósito:
+
+```
+Los créditos vencen según el paquete que compres y siempre se consume primero
+el que vence antes.
+```
+
+Sin número inventado y sin hueco. En esa prueba apareció un defecto cosmético
+—"personas ." con un espacio antes del punto, del salto de línea del JSX— que
+se corrigió armando la frase entera en una expresión.
+
+La prueba dejó ver además que la frase de cancelación aparecía **solo en el
+bloque de error** de `/reservar`, que es donde estaba antes de este cambio. Al
+revés de lo que hace falta: el momento de enterarse de que se puede cancelar
+sin costo es antes de reservar, no cuando algo falla. Se agregó también debajo
+de la tabla de turnos.
+
+**Predicción:**
+
+**Aprendizaje:**
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título

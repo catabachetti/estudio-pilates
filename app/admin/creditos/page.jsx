@@ -3,7 +3,8 @@ import { sesionAdmin } from '../../lib/autorizacion'
 import { clienteConSesion } from '../../lib/supabase-sesion'
 import { esUuid } from '../../lib/validacion'
 import { precioEnPesos } from '../../datos/sitio'
-import { ahoraEnElEstudio, textoDeFecha } from '../../datos/agenda'
+import { textoDeFecha } from '../../datos/agenda'
+import { resumenDeCreditos } from '../../lib/creditos'
 import { buscarPersona, otorgarCreditos } from '../../acciones/admin-creditos'
 
 const MENSAJES = {
@@ -148,15 +149,11 @@ function Persona({ datos }) {
 }
 
 // Todo lo que la pantalla muestra de una persona.
-//
-// Los créditos los puede leer administración porque la política de `creditos`
-// dice `using (... or es_admin())`. No hace falta función para esto.
 async function leerPersona(id) {
   const supabase = await clienteConSesion()
 
-  const [perfil, creditos, paquetes] = await Promise.all([
+  const [perfil, paquetes] = await Promise.all([
     supabase.from('perfiles').select('nombre').eq('id', id).maybeSingle(),
-    supabase.from('creditos').select('id, vence_el').eq('user_id', id).order('vence_el'),
     supabase
       .from('paquetes')
       .select('id, nombre, clases, precio, dias_vigencia')
@@ -164,62 +161,22 @@ async function leerPersona(id) {
       .order('orden'),
   ])
 
-  for (const c of [perfil, creditos, paquetes]) {
+  for (const c of [perfil, paquetes]) {
     if (c.error) console.error('Panel de créditos:', c.error.message)
   }
-  if (perfil.error || creditos.error || paquetes.error) return null
+  if (perfil.error || paquetes.error) return null
 
-  const usados = await creditosUsados(supabase, creditos.data.map((c) => c.id))
-  if (usados === null) return null
+  // El resumen sale de app/lib/creditos.js, el mismo que usa /cuenta: la regla
+  // de cuándo un crédito está tomado tiene que ser una sola. Antes esta
+  // pantalla filtraba por reservas confirmadas, y con eso los créditos
+  // perdidos por una cancelación tardía volvían a contarse como disponibles.
+  const resumen = await resumenDeCreditos(supabase, id)
+  if (!resumen) return null
 
   return {
     id,
     nombre: perfil.data?.nombre ?? null,
     paquetes: paquetes.data,
-    resumen: resumir(creditos.data, usados),
-  }
-}
-
-// Qué créditos ya se gastaron: los que tiene apuntados una reserva confirmada.
-// `reservas.credito_id` es unique, así que un crédito lo consume una sola.
-async function creditosUsados(supabase, ids) {
-  if (ids.length === 0) return new Set()
-
-  const { data, error } = await supabase
-    .from('reservas')
-    .select('credito_id')
-    .in('credito_id', ids)
-    .eq('estado', 'confirmada')
-
-  if (error) {
-    console.error('No se pudieron leer las reservas de esos créditos:', error.message)
-    return null
-  }
-  return new Set(data.map((r) => r.credito_id))
-}
-
-function resumir(creditos, usados) {
-  const hoy = ahoraEnElEstudio().clave
-  const porFecha = new Map()
-  let disponibles = 0
-  let vencidos = 0
-
-  for (const c of creditos) {
-    if (usados.has(c.id)) continue
-    if (c.vence_el < hoy) {
-      vencidos += 1
-      continue
-    }
-    disponibles += 1
-    porFecha.set(c.vence_el, (porFecha.get(c.vence_el) ?? 0) + 1)
-  }
-
-  return {
-    disponibles,
-    vencidos,
-    usados: usados.size,
-    porVencimiento: [...porFecha.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([fecha, cantidad]) => ({ fecha, cantidad })),
+    resumen,
   }
 }

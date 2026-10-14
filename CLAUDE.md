@@ -65,9 +65,38 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   `security definer` que verifican `es_admin()` adentro, no la clave secreta.**
   La clave secreta saltea RLS por completo; una función hace una sola cosa y se
   puede auditar.
+- **Una política con `or es_admin()` no filtra por persona.** `reservas`,
+  `creditos`, `compras` y `perfiles` dicen `user_id = auth.uid() or
+  es_admin()`: para una cuenta común RLS ya devuelve solo lo suyo, pero para
+  una cuenta de administración devuelve **todo**. Cualquier pantalla "mis
+  cosas" tiene que filtrar por `user_id` igual, aunque parezca redundante. Sin
+  ese filtro, `/cuenta` le mostraba a quien administra las reservas ajenas como
+  propias.
+
 - Una escritura que RLS rechaza **no devuelve error**: devuelve que no cambió
   ninguna fila. Toda actualización del panel termina en `.select()` para
   distinguir "no tenía permiso" de "guardado".
+
+## Reservas
+
+- **Reservar y cancelar son funciones de la base, no código que consulta y
+  después escribe.** `reservar_clase()` bloquea la fila de la clase con
+  `for update` antes de contar, y toma el crédito con `for update skip locked`.
+  Contar desde el servidor y escribir después es la carrera que dos personas
+  tomando el último lugar ganan las dos.
+- **`reservas` no tiene política de INSERT ni de UPDATE.** Es a propósito: el
+  candado de la función solo vale si no hay otra puerta. Lo mismo que
+  `creditos`. Si alguna pantalla necesita escribir ahí, va una función nueva,
+  no una política.
+- **Un crédito está tomado si lo referencia cualquier reserva**, sin mirar su
+  estado. Cancelar a tiempo suelta el `credito_id` y lo devuelve; cancelar
+  tarde lo deja enganchado y por eso se pierde. La regla vive en
+  `app/lib/creditos.js` y la usan `/cuenta` y `/admin/creditos`.
+- **Cuando el estudio cancela una clase**, un disparador pasa sus reservas a
+  canceladas y les devuelve el crédito, sin mirar la ventana. Al reactivarla no
+  vuelven: esas personas ya tienen su crédito de nuevo.
+- `supabase/probar-reservas.sh` levanta un Postgres descartable y prueba las
+  seis situaciones, incluida la carrera con dos transacciones reales.
 
 ## Qué revalidar después de escribir
 
