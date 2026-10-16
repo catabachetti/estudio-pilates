@@ -12,6 +12,23 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 - Explicar los cambios antes de aplicarlos. Soy principiante.
 - Server Components por defecto. Solo usar 'use client' donde haya
   interactividad real (useState, onClick, useEffect).
+
+  **Hay una sola excepción en el proyecto y es `app/components/CampoDeContrasena.jsx`.**
+  El módulo 10 pide un indicador visual de fortaleza de contraseña, y
+  *fortaleza* implica grados: una versión con CSS puro puede decir "falta algo"
+  pero no "débil / bien / muy buena", porque un input tiene un solo `pattern`.
+  Para graduarlo hace falta leer lo que se escribe, y eso es estado de cliente.
+
+  **El límite de la excepción, que es lo que la hace aceptable:** el medidor es
+  un agregado, no una dependencia. Nada funcional pasa por ahí. Con JavaScript
+  apagado el componente igual se renderiza en el servidor y queda un campo
+  normal con su `pattern`, su `minLength` y la lista de requisitos a la vista;
+  lo único que se pierde es la barra moviéndose. Verificado: con JavaScript
+  desactivado en el navegador, el registro se completa y crea la cuenta.
+
+  Si aparece otro caso que parezca necesitar `'use client'`, no alcanza con
+  citar este: hay que demostrar primero que no se puede con CSS, y que lo que
+  se agrega no es funcional.
 - HTML semántico y accesible: labels asociados, alt en imágenes,
   jerarquía de encabezados correcta.
 - Next 16: `params` es una Promise, se usa con await.
@@ -22,6 +39,23 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   footer con dirección y horario es una convención, y quien entra a /contacto
   espera encontrarlos ahí sin bajar al pie. Lo que no puede repetirse es el
   valor escrito a mano en dos archivos, porque se desincroniza.
+
+## Contraseñas
+
+- Las reglas viven en `app/lib/contrasena.js` y las piden **tres capas**: el
+  `pattern` del navegador, `esValida()` en la Server Action, y las Password
+  Requirements configuradas en Supabase. Las tres tienen que pedir exactamente
+  lo mismo o alguien pasa una y rebota contra otra con un error en inglés.
+- **La que manda es Supabase**, porque `/auth/v1/signup` es público y
+  alcanzable con la clave publishable: se puede crear una cuenta sin pasar
+  nunca por nuestro formulario. Si cambian las Password Requirements en el
+  panel, hay que actualizar `contrasena.js`, no al revés.
+- El `pattern` se compila con la bandera `v`, que **obliga a escapar**
+  `( ) [ ] { } / - |` dentro de una clase de caracteres. Mal escapado, el
+  navegador lo descarta en silencio y deja de validar sin avisar.
+- **Al ingresar no se valida la fortaleza.** Quien se registró con las reglas
+  viejas tiene que poder entrar igual, y exigirlas ahí además revelaría la
+  política vigente.
 
 ## Claves y variables de entorno
 

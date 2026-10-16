@@ -1,7 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import { CUPO_MAXIMO, enlaceWhatsapp } from '../datos/sitio'
+import { enlaceWhatsapp } from '../datos/sitio'
 import { DURACION_CLASE } from '../datos/agenda'
 import { clienteSupabase } from '../lib/supabase'
 
