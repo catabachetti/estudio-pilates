@@ -1,6 +1,7 @@
 import { cache } from 'react'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { opcionesDeCookie } from './cookies'
 
 // Cliente para todo lo que necesite saber quién está conectado.
 //
@@ -24,7 +25,7 @@ export async function clienteConSesion() {
         setAll(cookiesAEscribir) {
           try {
             for (const { name, value, options } of cookiesAEscribir) {
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, opcionesDeCookie(options))
             }
           } catch {
             // Un Server Component puede leer cookies pero no escribirlas. Acá

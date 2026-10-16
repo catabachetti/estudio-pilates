@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { opcionesDeCookie } from './app/lib/cookies'
 
 // Refresca la sesión antes de que se renderice cada página.
 //
@@ -28,7 +29,7 @@ export async function proxy(request) {
           }
           respuesta = NextResponse.next({ request })
           for (const { name, value, options } of cookiesAEscribir) {
-            respuesta.cookies.set(name, value, options)
+            respuesta.cookies.set(name, value, opcionesDeCookie(options))
           }
         },
       },
