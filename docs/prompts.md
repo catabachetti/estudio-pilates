@@ -666,6 +666,136 @@ de la tabla de turnos.
 
 ---
 
+## 2026-10-16 — Módulo 10: contraseñas, cookies y un reporte falso
+
+**Prompt:** repaso del módulo 10 completo contra el proyecto. Fortaleza de
+contraseña con medidor graduado, rate limiting, CAPTCHA, recuperación, códigos
+HTTP y un documento de seguridad.
+
+### El episodio: trabajo borrado y, peor, reportado como hecho
+
+Al revertir una rama de prueba se corrió `git checkout -- .`, que descarta todas
+las modificaciones sin commitear de archivos con seguimiento. Los cambios se
+habían llevado a esa rama con un `stash pop`, así que el comando se llevó puesto
+el trabajo de tres bloques ya verificados: las cookies, el medidor de
+contraseña y el 401 del proxy. Sobrevivieron solo los archivos nuevos, porque
+`git checkout -- .` no toca lo que no tiene seguimiento.
+
+**La causa no fue el comando, fue la acumulación:** había siete bloques de
+trabajo verificado y cero commits. Un comando destructivo sobre un árbol limpio
+no borra nada.
+
+**Y hubo algo peor que la pérdida.** Al volver a conectar el bloqueo de ingreso,
+el script de edición imprimió *"sesion.js conectado al bloqueo"* sin comprobar
+que el reemplazo hubiera encontrado su texto. No lo encontró —el archivo ya
+estaba revertido— y el cambio se reportó como hecho sin haber ocurrido.
+
+El síntoma apareció después: cinco intentos fallidos seguidos devolvían
+`error=credenciales` en vez del bloqueo. La primera hipótesis fue que la
+migración estaba mal, y se perdió tiempo probando las funciones por RPC —que
+andaban perfecto— antes de mirar el archivo y encontrar que el código
+simplemente no existía.
+
+**Por qué esto es más grave que el `git checkout`:** un error de git se arregla
+con un commit. Un reporte sin verificar envenena todo lo que viene después,
+porque a partir de ahí se razona sobre un estado que no es el real. Las dos
+hipótesis que se investigaron primero eran imposibles.
+
+**Las dos reglas que quedan para el resto del proyecto:**
+
+1. **Commit antes de cualquier comando destructivo, y commit por bloque.** Aunque
+   la rama quede con diez commits chicos.
+2. **Ningún paso informa "hecho" sin verificar que pasó.** Un script que escribe
+   archivos y avisa "listo" sin comprobar que el reemplazo encontró su texto
+   está mintiendo por omisión. Se usaba `assert` en las migraciones y no en los
+   scripts de edición; ahora hay un ayudante que corta si el texto no está, y que
+   además relee del disco, porque comprobar sobre la variable en memoria no
+   prueba que el archivo haya quedado escrito.
+
+Todo se rehizo volviendo a correr cada verificación, no dándolas por buenas
+porque ya habían pasado una vez.
+
+### Hallazgo: la cookie de sesión salía sin `HttpOnly` ni `Secure`
+
+```
+sb-...-auth-token   Path=/  Max-Age=34560000  SameSite=lax
+HttpOnly  NO        Secure  NO
+```
+
+Es textualmente uno de los errores de la diapositiva 17. `@supabase/ssr` no los
+pone, y no es un descuido suyo: la misma librería sirve a aplicaciones donde el
+navegador lee la cookie con `createBrowserClient`, y ahí `httpOnly` la rompería.
+Este proyecto no es una de esas —cero `createBrowserClient`, cero `'use
+client'`— así que se verificó eso primero.
+
+**Verificación:** con sesión iniciada, `document.cookie` devuelve vacío y
+`/cuenta` sigue dando 200.
+
+### Un `pattern` mal escapado se descarta en silencio
+
+El atributo `pattern` se compila con la bandera `v`, que **obliga a escapar**
+`( ) [ ] { } / - |` dentro de una clase de caracteres. Si no compila, **el
+navegador no avisa**: no hay error en consola. Simplemente deja de validar.
+
+El formulario se habría visto igual y habría aceptado cualquier cosa. Lo evitó
+probar que compilaba antes de construir encima.
+
+**La regla:** una validación que falla en silencio es peor que no tenerla,
+porque da una garantía que no existe.
+
+### Una validación de más, en el lugar equivocado
+
+`/ingresar` validaba la fortaleza antes de consultar a Supabase. Al endurecer
+las reglas eso dejó de ser inofensivo: quien se registró con las viejas quedaba
+afuera de su propia cuenta con un "credenciales incorrectas" que era mentira, y
+de paso el formulario revelaba la política vigente.
+
+**La regla:** validar de más, en el lugar equivocado, rompe tanto como validar
+de menos.
+
+### El techo puesto en el lugar equivocado
+
+`espera_por_fallos` acotaba el resultado y no el exponente:
+
+```sql
+least(30 * (2 ^ (p_fallos - 5))::integer, 300)
+```
+
+La potencia se calcula antes del `least`. Medido contra Postgres 18, **a partir
+de 32 fallos** la función corta con "integer out of range". No desborda el
+casteo sino la multiplicación: 30 * 2^27 da 4.026.531.840 contra un máximo de
+2.147.483.647.
+
+Y 32 fallos es exactamente lo que acumula quien prueba contraseñas, que es el
+caso para el que existe la tabla: habría fallado justo cuando hacía falta, y
+dentro de `registrar_fallo()`, que es la función que impone el bloqueo.
+
+**Cómo se escapó:** la función parecía correcta en todos los valores que uno
+prueba a mano. El script de pruebas llegaba hasta 12.
+
+### Lo que Supabase trae y lo que no
+
+Todo medido contra el proyecto, no leído de la documentación:
+
+| Qué | Resultado |
+| --- | --- |
+| Contraseñas que aceptaba | solo 6 caracteres; `"12345678"` creaba cuenta |
+| Límite de login | 429 en el intento 35, a los 9,5 s |
+| ¿Por IP o por cuenta? | **por IP**: la otra cuenta, con clave correcta, también recibió 429 |
+| ¿Cuánto dura? | ~10 segundos |
+| Registro con correo existente | `422 user_already_exists`: revela que la cuenta existe |
+
+Las tres primeras se hicieron **salteando la aplicación**, con `curl` contra el
+endpoint de Supabase y la clave publishable. De ahí sale la regla que organiza
+todo el módulo: **lo que se configura en Supabase no se puede saltear; lo que
+escribimos nosotros, sí.**
+
+**Predicción:**
+
+**Aprendizaje:**
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título
