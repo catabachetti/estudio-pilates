@@ -6,6 +6,7 @@ import { clienteConSesion } from '../lib/supabase-sesion'
 import { rutaInterna } from '../lib/rutas'
 import { esEmail } from '../lib/validacion'
 import { esValida } from '../lib/contrasena'
+import { esperaPendiente, anotarFallo, olvidarFallos } from '../lib/intentos'
 
 // Acciones de entrar y salir.
 //
@@ -98,6 +99,21 @@ export async function ingresar(formData) {
 
   if (validarIngreso({ email, contrasena })) alFormulario('credenciales')
 
+  // Bloqueo progresivo tras varios fallos desde esta IP para este correo. Se
+  // consulta ANTES de preguntarle a Supabase: si hay que esperar, no se gasta
+  // un intento contra el servidor de auth.
+  //
+  // El mensaje es el mismo exista o no la cuenta, porque la tabla que lo decide
+  // no sabe nada de cuentas: solo cuenta intentos.
+  const aEsperar = (segundos) => {
+    const parametros = new URLSearchParams({ error: 'espera', segundos: String(segundos) })
+    if (volver) parametros.set('volver', volver)
+    redirect(`/ingresar?${parametros}`)
+  }
+
+  const espera = await esperaPendiente(email)
+  if (espera > 0) aEsperar(espera)
+
   const supabase = await clienteConSesion()
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -106,10 +122,16 @@ export async function ingresar(formData) {
 
   if (error) {
     console.error('Error al ingresar:', error.message)
+    const nuevaEspera = await anotarFallo(email)
+
     // Siempre el mismo error, exista o no ese correo. Distinguir los casos le
     // diría a cualquiera qué direcciones están registradas en el estudio.
+    if (nuevaEspera > 0) aEsperar(nuevaEspera)
     alFormulario('credenciales')
   }
+
+  // Entrar bien borra los fallos: nadie arrastra sus errores.
+  await olvidarFallos(email)
 
   revalidatePath('/', 'layout')
   redirect(volver ?? '/')
