@@ -52,9 +52,31 @@ export async function proxy(request) {
   // acción. Esto de acá es el filtro barato que evita renderizar el panel para
   // alguien que no entró, y es gratis porque la llamada ya estaba hecha arriba.
   //
-  // Es el caso 401: no sabemos quién es. Se lo manda a ingresar con la ruta a
-  // la que quería llegar, para devolverlo ahí cuando entre.
+  // ES EL CASO 401: no sabemos quién es. Qué se devuelve depende de quién
+  // pregunta, y las dos respuestas son el mismo 401 dicho de dos formas:
+  //
+  //   un navegador navegando   -> redirección a /ingresar, guardando a dónde
+  //                               iba. Devolverle un 401 pelado sería mostrarle
+  //                               una pantalla en blanco en vez de la puerta.
+  //   cualquier otro cliente   -> 401 de verdad, que es lo que un programa
+  //                               espera y lo que dice el módulo 10.
+  //
+  // Se distingue por la cabecera `Accept`, que es lo que existe para eso. Las
+  // navegaciones internas de Next también llevan redirección: piden
+  // `text/x-component` y esperan poder seguirla, no un error.
+  //
+  // DESVÍO CONOCIDO: la RFC 9110 pide que un 401 incluya una cabecera
+  // `WWW-Authenticate` con un desafío. Para sesiones por cookie no hay esquema
+  // aplicable, así que no se manda ninguna, igual que la mayoría de las
+  // aplicaciones con login por formulario. Está anotado en docs/seguridad.md.
   if (!data.user && request.nextUrl.pathname.startsWith('/admin')) {
+    if (!quiereUnaPagina(request)) {
+      return Response.json(
+        { error: 'no_autenticado', mensaje: 'Hace falta iniciar sesión.' },
+        { status: 401 }
+      )
+    }
+
     const destino = request.nextUrl.pathname + request.nextUrl.search
     const url = request.nextUrl.clone()
     url.pathname = '/ingresar'
@@ -72,6 +94,18 @@ export async function proxy(request) {
   }
 
   return respuesta
+}
+
+// Si el pedido lo hizo un navegador para mostrar una página, o Next para
+// navegar entre páginas. En los dos casos hay a dónde mandar a la persona; en
+// el resto, no hay pantalla que mostrar y corresponde el código.
+function quiereUnaPagina(request) {
+  const acepta = request.headers.get('accept') ?? ''
+  return (
+    acepta.includes('text/html') ||
+    acepta.includes('text/x-component') ||
+    request.headers.has('rsc')
+  )
 }
 
 export const config = {
