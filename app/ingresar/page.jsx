@@ -12,6 +12,8 @@ export const metadata = {
 // ese correo: distinguirlo revelaría quiénes están registradas.
 const MENSAJES = {
   credenciales: 'Esas credenciales no son correctas.',
+  enlace:
+    'Ese enlace no sirve: puede haber vencido o haberse usado antes. Pedí uno nuevo.',
   email: 'Revisá el correo: no parece una dirección válida.',
 }
 
@@ -93,6 +95,13 @@ export default async function IngresarPage({ searchParams }) {
             Ingresar
           </button>
         </form>
+
+        <p className="nota">
+          ¿Olvidaste tu contraseña?{' '}
+          <Link href="/recuperar" className="enlace-subrayado">
+            Recuperala
+          </Link>
+        </p>
 
         <p className="nota">
           ¿Todavía no tenés cuenta?{' '}
