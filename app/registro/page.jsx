@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import EncabezadoPagina from '../components/EncabezadoPagina'
 import { registrarse } from '../acciones/sesion'
+import CampoDeContrasena from '../components/CampoDeContrasena'
 
 export const metadata = {
   title: 'Crear cuenta | ACTIVE',
@@ -10,7 +11,8 @@ export const metadata = {
 const MENSAJES = {
   nombre: 'Escribí tu nombre.',
   email: 'Revisá el correo: no parece una dirección válida.',
-  contrasena: 'La contraseña tiene que tener al menos 8 caracteres.',
+  contrasena:
+    'La contraseña necesita al menos 8 caracteres, una minúscula, una mayúscula, un número y un símbolo.',
   // Error genérico: no se dice si el correo ya estaba registrado.
   registro: 'No pudimos crear la cuenta. Probá de nuevo en un rato.',
 }
@@ -56,21 +58,7 @@ export default async function RegistroPage({ searchParams }) {
             />
           </div>
 
-          <div className="campo">
-            <label htmlFor="contrasena">Contraseña</label>
-            <input
-              type="password"
-              id="contrasena"
-              name="contrasena"
-              autoComplete="new-password"
-              minLength={8}
-              required
-              aria-describedby="ayuda-contrasena"
-            />
-            <p id="ayuda-contrasena" className="campo-ayuda">
-              Al menos 8 caracteres.
-            </p>
-          </div>
+          <CampoDeContrasena />
 
           <button type="submit" className="boton boton-oscuro">
             Crear cuenta

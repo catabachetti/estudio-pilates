@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { clienteConSesion } from '../lib/supabase-sesion'
 import { rutaInterna } from '../lib/rutas'
 import { esEmail } from '../lib/validacion'
+import { esValida } from '../lib/contrasena'
+import { esperaPendiente, anotarFallo, olvidarFallos } from '../lib/intentos'
 
 // Acciones de entrar y salir.
 //
@@ -16,15 +18,29 @@ import { esEmail } from '../lib/validacion'
 // useActionState, que es un hook de cliente. Van como parámetro en la URL y la
 // página los traduce a un mensaje en castellano.
 
-const MINIMO_CONTRASENA = 8
-
-// Validación del lado del servidor. El formulario también valida en el
-// navegador, pero eso es para la persona: cualquiera puede saltearlo mandando
-// el pedido a mano, así que acá se vuelve a mirar todo.
-function validar({ email, contrasena, nombre }) {
-  if (nombre !== undefined && nombre.trim().length === 0) return 'nombre'
+// Validación del lado del servidor para el REGISTRO. El formulario también
+// valida en el navegador, pero eso es para la persona: cualquiera puede
+// saltearlo mandando el pedido a mano, así que acá se vuelve a mirar todo.
+//
+// Las reglas salen de app/lib/contrasena.js, que copia las Password
+// Requirements configuradas en Supabase. Las tres capas piden lo mismo para que
+// nadie pase una y rebote contra otra con un error en inglés.
+function validarRegistro({ email, contrasena, nombre }) {
+  if (nombre.trim().length === 0) return 'nombre'
   if (!esEmail(email)) return 'email'
-  if ((contrasena ?? '').length < MINIMO_CONTRASENA) return 'contrasena'
+  if (!esValida(contrasena)) return 'contrasena'
+  return null
+}
+
+// AL INGRESAR NO SE VALIDA LA FORTALEZA, y es a propósito. Las reglas de hoy
+// son más estrictas que las de ayer: quien se registró antes tiene una
+// contraseña que ya no pasaría, y rechazarla acá la dejaría afuera de su propia
+// cuenta sin siquiera consultar a Supabase. Además le diría a cualquiera cuál
+// es la política vigente. Lo único que se mira es que haya algo que mandar;
+// quién decide es el servidor de auth.
+function validarIngreso({ email, contrasena }) {
+  if (!esEmail(email)) return 'credenciales'
+  if (contrasena.length === 0) return 'credenciales'
   return null
 }
 
@@ -33,7 +49,7 @@ export async function registrarse(formData) {
   const contrasena = String(formData.get('contrasena') ?? '')
   const nombre = String(formData.get('nombre') ?? '').trim()
 
-  const falla = validar({ email, contrasena, nombre })
+  const falla = validarRegistro({ email, contrasena, nombre })
   if (falla) redirect(`/registro?error=${falla}`)
 
   const supabase = await clienteConSesion()
@@ -81,7 +97,22 @@ export async function ingresar(formData) {
     redirect(`/ingresar?${parametros}`)
   }
 
-  if (validar({ email, contrasena })) alFormulario('credenciales')
+  if (validarIngreso({ email, contrasena })) alFormulario('credenciales')
+
+  // Bloqueo progresivo tras varios fallos desde esta IP para este correo. Se
+  // consulta ANTES de preguntarle a Supabase: si hay que esperar, no se gasta
+  // un intento contra el servidor de auth.
+  //
+  // El mensaje es el mismo exista o no la cuenta, porque la tabla que lo decide
+  // no sabe nada de cuentas: solo cuenta intentos.
+  const aEsperar = (segundos) => {
+    const parametros = new URLSearchParams({ error: 'espera', segundos: String(segundos) })
+    if (volver) parametros.set('volver', volver)
+    redirect(`/ingresar?${parametros}`)
+  }
+
+  const espera = await esperaPendiente(email)
+  if (espera > 0) aEsperar(espera)
 
   const supabase = await clienteConSesion()
   const { error } = await supabase.auth.signInWithPassword({
@@ -91,10 +122,16 @@ export async function ingresar(formData) {
 
   if (error) {
     console.error('Error al ingresar:', error.message)
+    const nuevaEspera = await anotarFallo(email)
+
     // Siempre el mismo error, exista o no ese correo. Distinguir los casos le
     // diría a cualquiera qué direcciones están registradas en el estudio.
+    if (nuevaEspera > 0) aEsperar(nuevaEspera)
     alFormulario('credenciales')
   }
+
+  // Entrar bien borra los fallos: nadie arrastra sus errores.
+  await olvidarFallos(email)
 
   revalidatePath('/', 'layout')
   redirect(volver ?? '/')

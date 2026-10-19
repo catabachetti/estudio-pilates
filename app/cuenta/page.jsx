@@ -26,7 +26,7 @@ export default async function CuentaPage({ searchParams }) {
   if (!usuario) redirect('/ingresar?volver=%2Fcuenta')
 
   const parametros = await searchParams
-  const aviso = avisoDeCancelacion(parametros)
+  const aviso = avisoDe(parametros)
   const error = MENSAJES[parametros?.r]
 
   const supabase = await clienteConSesion()
@@ -63,8 +63,18 @@ export default async function CuentaPage({ searchParams }) {
   )
 }
 
-function avisoDeCancelacion(parametros) {
+// Los avisos de que algo salió bien. Todos leen el mismo parámetro `r`: la
+// primera versión de cambiar la contraseña redirigía con `?estado=` y esta
+// página nunca lo miraba, así que se cambiaba la contraseña y no aparecía
+// ninguna confirmación. Cambiar algo importante y no ver respuesta deja a
+// cualquiera con la duda de si se guardó.
+function avisoDe(parametros) {
+  if (parametros?.r === 'contrasena') {
+    return 'Contraseña cambiada. La próxima vez que entres, usá la nueva.'
+  }
+
   if (parametros?.r !== 'cancelada') return null
+
   return parametros.credito === 'devuelto'
     ? 'Reserva cancelada y crédito devuelto. Ya lo podés usar en otra clase.'
     : 'Reserva cancelada. Como faltaba menos que la ventana de cancelación, el crédito se usó igual.'

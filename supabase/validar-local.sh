@@ -58,6 +58,9 @@ q -c "select relname as tabla, relrowsecurity as rls, (select count(*) from pg_p
 # Ojo con `reservas` y `creditos`: tienen UNA sola politica, de lectura, y esta
 # bien asi. Se escriben solo desde las funciones security definer, que es lo que
 # garantiza que nadie cree una reserva salteandose el cupo y el credito.
+#
+# Y `intentos_ingreso` no tiene NINGUNA, tambien a proposito: con RLS activa y
+# cero politicas la tabla es invisible y no se puede escribir desde fuera.
 q -v ON_ERROR_STOP=1 -q <<'SQL'
 do $$
 declare
@@ -69,9 +72,14 @@ begin
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;
 
+  -- Una tabla con RLS activa y CERO politicas no esta abierta: esta cerrada del
+  -- todo. Es lo correcto para las que solo escriben las funciones security
+  -- definer. Van nombradas una por una para que agregar otra sea una decision y
+  -- no un descuido.
   select string_agg(c.relname, ', ' order by c.relname) into sin_politicas
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
   where n.nspname = 'public' and c.relkind = 'r'
+    and c.relname not in ('intentos_ingreso')
     and not exists (select 1 from pg_policies p where p.tablename = c.relname);
 
   select count(*) into cuantas
@@ -81,8 +89,8 @@ begin
   -- Este numero se actualiza a mano a proposito: si una migracion agrega una
   -- tabla, la validacion falla hasta que alguien mire si esa tabla necesita RLS
   -- y politicas. Es un despertador, no una molestia.
-  if cuantas <> 10 then
-    raise exception 'FALLA: se esperaban 10 tablas y hay %. Si agregaste una, revisa que tenga RLS y politicas y actualiza este numero.', cuantas;
+  if cuantas <> 11 then
+    raise exception 'FALLA: se esperaban 11 tablas y hay %. Si agregaste una, revisa que tenga RLS y politicas y actualiza este numero.', cuantas;
   end if;
   if sin_rls is not null then
     raise exception 'FALLA: estas tablas quedaron sin RLS: %', sin_rls;
@@ -91,7 +99,7 @@ begin
     raise exception 'FALLA: estas tablas no tienen ninguna politica: %', sin_politicas;
   end if;
 
-  raise notice 'OK: las 10 tablas tienen RLS activa y al menos una politica';
+  raise notice 'OK: las 11 tablas tienen RLS activa, y las que no tienen politicas es porque estan cerradas a proposito';
 end $$;
 SQL
 

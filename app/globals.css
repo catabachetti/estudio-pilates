@@ -1744,3 +1744,66 @@ a.tira-dia-elegido:hover {
     text-align: left;
   }
 }
+
+/* ---------- medidor de fortaleza de contrasena ---------- */
+
+.fortaleza {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* appearance: none para poder pintarlo: el <meter> nativo trae el aspecto del
+   sistema operativo y no hay forma de alinearlo con el resto del sitio. */
+.fortaleza-barra {
+  appearance: none;
+  flex: 1;
+  height: 4px;
+  border: 0;
+  background-color: var(--arena);
+}
+
+.fortaleza-barra::-webkit-meter-bar {
+  background-color: var(--arena);
+  border: 0;
+  height: 4px;
+}
+
+.fortaleza-barra::-webkit-meter-optimum-value,
+.fortaleza-barra::-webkit-meter-suboptimum-value,
+.fortaleza-barra::-webkit-meter-even-less-good-value {
+  background-color: var(--tierra-oscuro);
+  transition: width 0.2s;
+}
+
+.fortaleza-barra::-moz-meter-bar {
+  background-color: var(--tierra-oscuro);
+}
+
+.fortaleza-texto {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tierra-oscuro);
+  min-width: 9ch;
+}
+
+.reglas {
+  display: grid;
+  gap: 2px;
+  list-style: none;
+  margin-top: 8px;
+}
+
+.regla {
+  font-size: 0.85rem;
+  color: var(--gris);
+}
+
+/* El color no es la unica senal: tambien cambia el simbolo de la izquierda, de
+   punto a tilde. Quien no distingue los colores igual ve cual falta. */
+.regla-ok {
+  color: var(--tierra-oscuro);
+}
+
