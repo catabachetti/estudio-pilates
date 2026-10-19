@@ -56,6 +56,15 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 - **Al ingresar no se valida la fortaleza.** Quien se registró con las reglas
   viejas tiene que poder entrar igual, y exigirlas ahí además revelaría la
   política vigente.
+- Supabase rechaza poner **la contraseña que ya está puesta** (`same_password`),
+  y compara **solo contra la actual**: no hay historial de contraseñas
+  anteriores. Los textos de la pantalla dicen exactamente eso y no "ya usaste
+  esa contraseña", que afirmaría una protección que no existe.
+
+  *Posible mejora, no pendiente:* impedir de verdad el reúso de contraseñas
+  anteriores requeriría guardar los hashes viejos. Eso es una decisión aparte
+  con su propio costo —más datos sensibles guardados, y hay que decidir cuántos
+  y por cuánto tiempo— así que no está hecho ni se debe.
 
 ## Claves y variables de entorno
 

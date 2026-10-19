@@ -12,7 +12,12 @@ export const metadata = {
 const MENSAJES = {
   contrasena:
     'La contraseña necesita al menos 8 caracteres, una minúscula, una mayúscula, un número y un símbolo.',
-  repetida: 'Esa es la contraseña que ya tenías. Elegí una distinta.',
+  // El texto dice exactamente lo que el sistema comprueba, ni más ni menos.
+  // NO decir "ya usaste esa contraseña" ni "no podés repetir una anterior",
+  // aunque sea lo que dicen otros sitios: Supabase compara contra la
+  // contraseña ACTUAL y nada más, no contra un historial. Ese texto afirmaría
+  // una protección que no existe.
+  repetida: 'La contraseña nueva tiene que ser distinta de la actual.',
   guardar:
     'No pudimos cambiar la contraseña. Si llegaste desde un correo viejo, pedí un enlace nuevo.',
 }

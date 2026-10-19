@@ -50,9 +50,13 @@ export async function cambiarContrasena(formData) {
   if (error) {
     console.error('No se pudo cambiar la contraseña:', error.message)
 
-    // Supabase rechaza repetir la contraseña que ya se tenía, y ese caso pasa
-    // seguido: alguien que llega por el correo escribe la que recuerda. Sin
-    // este mensaje queda un "no pudimos" genérico que no dice qué arreglar.
+    // Supabase rechaza poner la misma contraseña que ya está puesta, y ese
+    // caso pasa seguido: alguien que llega por el correo escribe la que
+    // recuerda. Sin este mensaje queda un "no pudimos" genérico que no dice
+    // qué arreglar.
+    //
+    // Compara contra la contraseña ACTUAL únicamente. No hay historial, así
+    // que el mensaje de la pantalla no puede dar a entender que lo haya.
     const repetida = error.code === 'same_password'
     redirect(`/cuenta/contrasena?error=${repetida ? 'repetida' : 'guardar'}`)
   }
