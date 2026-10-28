@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { esValida, LARGO_MINIMO } from './contrasena'
+// Con la extension a proposito: Next resuelve './contrasena' igual, pero con
+// la extension este modulo tambien se puede importar desde `node` a secas, y
+// eso es lo que deja probar los esquemas sin compilar el proyecto
+// (docs/ejemplos/probar-esquemas.mjs).
+import { esValida, LARGO_MINIMO } from './contrasena.js'
 
 // Los esquemas de validación del proyecto. Esta es la ÚNICA definición de cada
 // regla: `app/lib/validacion.js` ya no define nada, solo envuelve lo de acá
@@ -70,6 +74,16 @@ export const EnteroNoNegativo = z.coerce
   .int({ error: 'Tiene que ser un número entero.' })
   .min(0, { error: 'No puede ser negativo.' })
 
+// LOS LARGOS DE TEXTO DEL CATALOGO, EN UN SOLO LUGAR.
+//
+// Estos dos numeros estaban escritos a mano en cuatro archivos: la constante de
+// la Server Action, este esquema, el maxLength del formulario y el texto del
+// mensaje de error ("no puede pasar de 60 caracteres"). Cuatro copias del mismo
+// dato es la manera de que un dia el formulario deje escribir 80 y el servidor
+// rechace a los 60 sin que nadie entienda por que.
+export const LARGO_NOMBRE = 60
+export const LARGO_INCLUYE = 200
+
 export const Texto = (max, etiqueta = 'Este campo') =>
   z
     .string()
@@ -84,9 +98,18 @@ export const UuidOpcional = z.preprocess(
   Uuid.nullable()
 )
 
+// Igual que UuidOpcional, y por el mismo motivo: un formulario manda '' cuando
+// el campo queda vacio, y un cuerpo JSON directamente omite la clave, que llega
+// como undefined. Los dos significan "sin valor" y los dos tienen que terminar
+// en null, que es lo que la columna admite.
+//
+// Antes este trataba '' pero no undefined, al contrario de UuidOpcional. Con
+// los endpoints de hoy no se notaba porque ningun cuerpo JSON lleva un texto
+// opcional, pero dos ayudantes hermanos que difieren en un caso son una trampa
+// para el proximo que use el que no lo cubre.
 export const TextoOpcional = (max) =>
   z.preprocess(
-    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    (v) => (v === undefined || (typeof v === 'string' && v.trim() === '') ? null : v),
     z.string().trim().max(max).nullable()
   )
 
@@ -120,11 +143,11 @@ export const EstadoDeClase = z.object({
 })
 
 export const EdicionDePaquete = z.object({
-  nombre: Texto(60, 'El nombre'),
+  nombre: Texto(LARGO_NOMBRE, 'El nombre'),
   precio: EnteroPositivo,
   clases: EnteroPositivo,
   dias_vigencia: EnteroPositivo,
-  incluye: TextoOpcional(200),
+  incluye: TextoOpcional(LARGO_INCLUYE),
   orden: EnteroNoNegativo,
 })
 
