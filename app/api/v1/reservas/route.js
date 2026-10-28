@@ -28,14 +28,19 @@ const COMO_HTTP = {
 // todo el mundo. Esa confusión ya se arregló una vez en /cuenta.
 export const GET = manejador(async (request) => {
   const { supabase, usuario } = await exigirSesion(request)
-  const { estado } = paramsDeConsulta(request, FiltroDeReservas)
+  const { estado, fecha } = paramsDeConsulta(request, FiltroDeReservas)
 
+  // `clases!inner` y no `clases`: con el join externo, filtrar por la fecha de
+  // la clase no se puede, y el filtro se descartaria en silencio. Es inner y no
+  // cambia nada mas porque `reservas.clase_id` es una clave ajena obligatoria:
+  // no hay reserva sin clase.
   let consulta = supabase
     .from('reservas')
-    .select('id, estado, clases (id, fecha, hora, estado, tipos_clase (nombre))')
+    .select('id, estado, clases!inner (id, fecha, hora, estado, tipos_clase (nombre))')
     .eq('user_id', usuario.id)
 
   if (estado) consulta = consulta.eq('estado', estado)
+  if (fecha) consulta = consulta.eq('clases.fecha', fecha)
 
   const { data, error } = await consulta
   if (error) throw error
