@@ -66,6 +66,28 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   con su propio costo —más datos sensibles guardados, y hay que decidir cuántos
   y por cuánto tiempo— así que no está hecho ni se debe.
 
+## Validación
+
+- **Los esquemas de `app/lib/esquemas.js` son la única definición** de cada
+  regla: qué es un uuid, una fecha, una hora, un correo, una contraseña.
+  `app/lib/validacion.js` ya no define nada, solo los envuelve con la forma que
+  venían usando las Server Actions. Los dos caminos de entrada —formularios y
+  API— parten de los mismos esquemas, que es lo que hace que el panel y la API
+  acepten exactamente lo mismo.
+- Zod v4: las formas son `z.email()` y `z.uuid()`, no `z.string().email()`.
+  `z.iso.date()` además **rechaza fechas que no existen** como `2026-02-31`, que
+  antes había que comprobar a mano construyendo un `Date`.
+- **Zod está declarada en `package.json` a propósito.** Antes estaba disponible
+  solo porque la arrastraba `eslint-plugin-react-hooks`. Usarla así es una
+  trampa: el día que esa dependencia cambie, el build se rompe sin que nadie
+  haya tocado una línea nuestra.
+
+  *Mejora pendiente, sin apuro:* que las Server Actions validen el formulario
+  entero con un esquema de objeto en vez de campo por campo. Es mejor estilo,
+  pero **no arregla ninguna duplicación** —eso ya quedó resuelto con que
+  `validacion.js` envuelva a `esquemas.js`— y toca código ya verificado. Va
+  después de Mercado Pago.
+
 ## Claves y variables de entorno
 
 - Las claves van en `.env.local`, nunca en el código. Ese archivo está ignorado
