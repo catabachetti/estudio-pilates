@@ -19,19 +19,32 @@ import { z } from 'zod'
 
 // Un error que la API sabe explicar, con su código HTTP ya decidido.
 export class ErrorDeApi extends Error {
-  constructor(estado, codigo, mensaje, detalles = null) {
+  constructor(estado, codigo, mensaje, detalles = null, cabeceras = null) {
     super(mensaje)
     this.estado = estado
     this.codigo = codigo
     this.detalles = detalles
+    this.cabeceras = cabeceras
   }
 }
 
 export const malPedido = (mensaje, detalles) =>
   new ErrorDeApi(400, 'datos_invalidos', mensaje, detalles)
 
+// EL 401 DE LA API SI MANDA WWW-Authenticate, y el del sitio no.
+//
+// La RFC 9110 pide que un 401 traiga un desafio. En el sitio no se manda,
+// porque la sesion va por cookie y no hay esquema de autenticacion HTTP que
+// corresponda: eso esta documentado en docs/seguridad.md.
+//
+// **Pero ese argumento no vale aca.** La API acepta `Authorization: Bearer`
+// como mecanismo de primera clase, asi que existe un esquema aplicable y hay
+// que nombrarlo: sin esta cabecera, un cliente que recibe 401 no tiene de donde
+// deducir como identificarse.
 export const noAutenticado = (mensaje = 'Hace falta iniciar sesión.') =>
-  new ErrorDeApi(401, 'no_autenticado', mensaje)
+  new ErrorDeApi(401, 'no_autenticado', mensaje, null, {
+    'WWW-Authenticate': 'Bearer realm="api", charset="UTF-8"',
+  })
 
 export const sinPermiso = (mensaje = 'Tu cuenta no tiene permiso para esto.') =>
   new ErrorDeApi(403, 'sin_permiso', mensaje)
@@ -85,6 +98,7 @@ export function manejador(fn) {
       if (e instanceof ErrorDeApi) {
         return Response.json(cuerpoDeError(e.codigo, e.message, e.detalles, id), {
           status: e.estado,
+          ...(e.cabeceras ? { headers: e.cabeceras } : {}),
         })
       }
 
