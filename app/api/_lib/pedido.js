@@ -21,11 +21,20 @@ export function paramsDeConsulta(request, esquema) {
 // BODY: las estructuras complejas, en JSON. Un cuerpo mal formado es culpa de
 // quien llama, así que es 400 y no 500.
 export async function cuerpo(request, esquema) {
-  let crudo
+  return esquema.parse(await cuerpoCrudo(request))
+}
+
+// El cuerpo sin validar, para la única ruta que tiene que mirarlo antes de
+// elegir con qué esquema validarlo: PATCH /clases/{id} acepta un cambio de
+// estado o una edición completa, y son dos formas distintas.
+//
+// Está acá y no allá para que el mensaje de "no es JSON" se escriba una sola
+// vez. Antes estaba copiado en los dos lados, que es la manera de que un día
+// uno de los dos diga otra cosa.
+export async function cuerpoCrudo(request) {
   try {
-    crudo = await request.json()
+    return await request.json()
   } catch {
     throw malPedido('El cuerpo del pedido tiene que ser JSON válido.')
   }
-  return esquema.parse(crudo)
 }

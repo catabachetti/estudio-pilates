@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { clienteConSesion } from '../lib/supabase-sesion'
 import { exigirAdmin } from '../lib/autorizacion'
+import { cupoQueDejaGenteAfuera } from '../lib/clases'
 import {
   esUuid,
   aEntero,
@@ -87,22 +88,6 @@ function validarComunes({ tipo_clase_id, instructora_id, cupo_total }) {
   return null
 }
 
-// Cuántas reservas confirmadas tiene una clase. Admin las puede contar porque
-// la política de `reservas` dice `using (... or es_admin())`.
-async function reservasConfirmadas(supabase, claseId) {
-  const { count, error } = await supabase
-    .from('reservas')
-    .select('*', { count: 'exact', head: true })
-    .eq('clase_id', claseId)
-    .eq('estado', 'confirmada')
-
-  if (error) {
-    console.error('No se pudieron contar las reservas:', error.message)
-    return null
-  }
-  return count ?? 0
-}
-
 export async function crearClase(formData) {
   await exigirAdmin(RUTA)
 
@@ -152,10 +137,10 @@ export async function editarClase(formData) {
   // lugares y una sola persona administrando, la ventana es teórica. Cuando
   // existan las reservas, esa misma carrera sí importa y la verificación y la
   // escritura van a tener que ir en una sola sentencia.
-  const tomados = await reservasConfirmadas(supabase, id)
-  if (tomados === null) volverA(fecha, { error: 'guardar' })
-  if (comunes.cupo_total < tomados) {
-    volverA(fecha, { error: 'cupo-ocupado', reservas: String(tomados) })
+  const choque = await cupoQueDejaGenteAfuera(supabase, id, comunes.cupo_total)
+  if (choque.fallo) volverA(fecha, { error: 'guardar' })
+  if (choque.tomados !== undefined) {
+    volverA(fecha, { error: 'cupo-ocupado', reservas: String(choque.tomados) })
   }
 
   const resultado = await supabase

@@ -1,9 +1,10 @@
-import { manejador, ok } from '../../_lib/errores'
-import { paramsDeConsulta } from '../../_lib/pedido'
+import { manejador, ok, creado, conflicto, malPedido } from '../../_lib/errores'
+import { paramsDeConsulta, cuerpo } from '../../_lib/pedido'
+import { exigirAdminApi } from '../../_lib/sesion'
 import { clienteSupabase } from '../../../lib/supabase'
-import { FiltroDeClases } from '../../../lib/esquemas'
+import { FiltroDeClases, NuevaClase } from '../../../lib/esquemas'
+import { CODIGOS } from '../../../lib/validacion'
 import { ahoraEnElEstudio, sinSegundos } from '../../../datos/agenda'
-import { noEncontrado } from '../../_lib/errores'
 
 // GET /api/v1/clases?fecha=2026-11-03
 //
@@ -38,4 +39,33 @@ export const GET = manejador(async (request) => {
       lugares_libres: c.lugares,
     })),
   })
+})
+
+// POST /api/v1/clases
+//
+// BODY: crear no identifica nada por URL todavía, así que los datos van en el
+// cuerpo. Solo administración.
+export const POST = manejador(async (request) => {
+  const { supabase } = await exigirAdminApi(request)
+  const datos = await cuerpo(request, NuevaClase)
+
+  const { data, error } = await supabase.from('clases').insert(datos).select('id').single()
+
+  if (error) {
+    // El unique (fecha, hora) es la regla de negocio: no hay dos clases a la
+    // misma hora. Una clase cancelada sigue ocupando su horario, y eso es a
+    // propósito: esa fila tiene reservas colgando.
+    if (error.code === CODIGOS.UNICO) {
+      throw conflicto(
+        'horario_ocupado',
+        'Ya hay una clase ese día a esa hora. Si la habías cancelado, reactivala.'
+      )
+    }
+    if (error.code === CODIGOS.AJENA) {
+      throw malPedido('El tipo de clase o la instructora no existen.')
+    }
+    throw error
+  }
+
+  return creado({ id: data.id }, `/api/v1/clases/${data.id}`)
 })
