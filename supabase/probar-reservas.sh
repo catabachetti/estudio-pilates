@@ -4,16 +4,21 @@ export PATH=/Library/PostgreSQL/18/bin:$PATH
 S="$(mktemp -d)"
 P="$(cd "$(dirname "$0")" && pwd)"
 rm -rf "$S/pgr"
+# Un puerto libre, pedido ahora, y el socket en el directorio temporal propio.
+# Con un puerto fijo y el socket en /tmp, dos de estos scripts corriendo a la
+# vez —o uno que quedo colgado de antes— hacen fallar al otro con
+# "could not start server", que no tiene nada que ver con lo que esta probando.
+PUERTO=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 initdb -D "$S/pgr" -U prueba --auth=trust -E UTF8 --locale=C > /dev/null
-pg_ctl -D "$S/pgr" -o "-p 55434 -k /tmp -c listen_addresses=127.0.0.1" -l "$S/pgr.log" start > /dev/null
+pg_ctl -D "$S/pgr" -o "-p $PUERTO -k "$S" -c listen_addresses=127.0.0.1" -l "$S/pgr.log" start > /dev/null
 sleep 2
 limpiar() { pg_ctl -D "$S/pgr" stop -m fast > /dev/null 2>&1 || true; rm -rf "$S"; }
 trap limpiar EXIT
-q() { psql -h 127.0.0.1 -p 55434 -U prueba -d v -v ON_ERROR_STOP=1 -tA -q "$@"; }
-psql -h 127.0.0.1 -p 55434 -U prueba -d postgres -q -c "create database v;"
-psql -h 127.0.0.1 -p 55434 -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$P/auth-de-mentira.sql"
-for a in "$P"/migraciones/*.sql; do psql -h 127.0.0.1 -p 55434 -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$a"; done
-psql -h 127.0.0.1 -p 55434 -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$P/seed.sql"
+q() { psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -v ON_ERROR_STOP=1 -tA -q "$@"; }
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d postgres -q -c "create database v;"
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$P/auth-de-mentira.sql"
+for a in "$P"/migraciones/*.sql; do psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$a"; done
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$P/seed.sql"
 
 # Dos personas, una clase de manana con UN solo lugar, un credito cada una.
 q -q <<'SQL'
@@ -38,7 +43,7 @@ CLASE=$(q -c "select id from clases where fecha = current_date + 1 and hora = '2
 echo "=== 1. LA CARRERA POR EL ULTIMO LUGAR ==="
 echo "    Ana abre una transaccion, llama a la funcion y la deja abierta 3 segundos."
 echo "    Bea llama al mismo tiempo: tiene que quedarse esperando el candado."
-(psql -h 127.0.0.1 -p 55434 -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
+(psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
 begin;
 select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',true);
 select '  Ana  -> ' || resultado from reservar_clase('$CLASE');
@@ -48,7 +53,7 @@ SQL
 ) &
 sleep 1
 INICIO=$(python3 -c "import time;print(time.time())")
-psql -h 127.0.0.1 -p 55434 -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
 begin;
 select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',true);
 select '  Bea  -> ' || resultado from reservar_clase('$CLASE');
@@ -61,7 +66,7 @@ echo "  reservas confirmadas en la clase: $(q -c "select count(*) from reservas 
 
 echo
 como() { # como <uuid> <sql>
-  psql -h 127.0.0.1 -p 55434 -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
+  psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
 begin;
 select set_config('request.jwt.claim.sub','$1',true);
 $2

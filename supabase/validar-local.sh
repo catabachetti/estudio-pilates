@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Valida las migraciones y el seed contra un Postgres descartable, sin tocar
-# Supabase. Levanta un cluster propio en el puerto 55433, corre todo, comprueba
+# Supabase. Levanta un cluster propio en un puerto libre, corre todo, comprueba
 # que las nueve tablas queden con RLS activa y con politicas, y despues borra el
 # cluster. Uso: zsh supabase/validar-local.sh
 set -e
@@ -9,14 +9,19 @@ S="$(mktemp -d)"
 P="$(cd "$(dirname "$0")" && pwd)"
 
 rm -rf "$S/pgv"
+# Un puerto libre, pedido ahora, y el socket en el directorio temporal propio.
+# Con un puerto fijo y el socket en /tmp, dos de estos scripts corriendo a la
+# vez —o uno que quedo colgado de antes— hacen fallar al otro con
+# "could not start server", que no tiene nada que ver con lo que esta probando.
+PUERTO=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 initdb -D "$S/pgv" -U prueba --auth=trust -E UTF8 --locale=C > /dev/null
-pg_ctl -D "$S/pgv" -o "-p 55433 -k /tmp -c listen_addresses=127.0.0.1" -l "$S/pgv.log" start > /dev/null
+pg_ctl -D "$S/pgv" -o "-p $PUERTO -k "$S" -c listen_addresses=127.0.0.1" -l "$S/pgv.log" start > /dev/null
 sleep 2
 limpiar() { pg_ctl -D "$S/pgv" stop -m fast > /dev/null 2>&1 || true; rm -rf "$S"; }
 trap limpiar EXIT
 
-q() { psql -h 127.0.0.1 -p 55433 -U prueba -d validacion -v ON_ERROR_STOP=1 "$@"; }
-psql -h 127.0.0.1 -p 55433 -U prueba -d postgres -q -c "create database validacion;"
+q() { psql -h 127.0.0.1 -p $PUERTO -U prueba -d validacion -v ON_ERROR_STOP=1 "$@"; }
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d postgres -q -c "create database validacion;"
 
 echo "=== migraciones, en orden numerico ==="
 q -q -f "$P/auth-de-mentira.sql"
@@ -89,8 +94,8 @@ begin
   -- Este numero se actualiza a mano a proposito: si una migracion agrega una
   -- tabla, la validacion falla hasta que alguien mire si esa tabla necesita RLS
   -- y politicas. Es un despertador, no una molestia.
-  if cuantas <> 11 then
-    raise exception 'FALLA: se esperaban 11 tablas y hay %. Si agregaste una, revisa que tenga RLS y politicas y actualiza este numero.', cuantas;
+  if cuantas <> 12 then
+    raise exception 'FALLA: se esperaban 12 tablas y hay %. Si agregaste una, revisa que tenga RLS y politicas y actualiza este numero.', cuantas;
   end if;
   if sin_rls is not null then
     raise exception 'FALLA: estas tablas quedaron sin RLS: %', sin_rls;
@@ -99,7 +104,7 @@ begin
     raise exception 'FALLA: estas tablas no tienen ninguna politica: %', sin_politicas;
   end if;
 
-  raise notice 'OK: las 11 tablas tienen RLS activa, y las que no tienen politicas es porque estan cerradas a proposito';
+  raise notice 'OK: las 12 tablas tienen RLS activa, y las que no tienen politicas es porque estan cerradas a proposito';
 end $$;
 SQL
 
