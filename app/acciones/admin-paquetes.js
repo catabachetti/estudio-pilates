@@ -11,6 +11,7 @@ import {
   sinCambios,
   CODIGOS,
 } from '../lib/validacion'
+import { LARGO_NOMBRE, LARGO_INCLUYE } from '../lib/esquemas'
 
 // Las dos escrituras del panel de paquetes.
 //
@@ -21,8 +22,6 @@ import {
 // escribe; lo de acá es lo único que la base va a creer.
 
 const RUTA = '/admin/paquetes'
-const LARGO_NOMBRE = 60
-const LARGO_INCLUYE = 200
 
 function validar({ nombre, precio, clases, dias_vigencia, incluye, orden }) {
   if (nombre.length === 0 || nombre.length > LARGO_NOMBRE) return 'nombre'

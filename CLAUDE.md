@@ -66,6 +66,44 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   con su propio costo —más datos sensibles guardados, y hay que decidir cuántos
   y por cuánto tiempo— así que no está hecho ni se debe.
 
+## Validación
+
+- **Los esquemas de `app/lib/esquemas.js` son la única definición** de cada
+  regla: qué es un uuid, una fecha, una hora, un correo, una contraseña.
+  `app/lib/validacion.js` ya no define nada, solo los envuelve con la forma que
+  venían usando las Server Actions. Los dos caminos de entrada —formularios y
+  API— parten de los mismos esquemas, que es lo que hace que el panel y la API
+  acepten exactamente lo mismo.
+- **Los largos de texto del catálogo salen de `esquemas.js`**, no de cada
+  archivo: `LARGO_NOMBRE` y `LARGO_INCLUYE` estaban escritos a mano en cuatro
+  lugares —la constante de la Server Action, el esquema, el `maxLength` del
+  formulario y el texto del mensaje de error— y cuatro copias del mismo número
+  es la manera de que un día el formulario deje escribir 80 y el servidor
+  rechace a los 60 sin que nadie entienda por qué.
+- **`TextoOpcional` y `UuidOpcional` tratan igual a `''` y a `undefined`**, y
+  los dos terminan en `null`. Un formulario manda `''` cuando el campo queda
+  vacío; un cuerpo JSON directamente omite la clave. Si uno de los dos
+  ayudantes cubre un caso y el otro no, el próximo que use el incompleto se
+  come un 400 sin motivo visible.
+- `docs/ejemplos/probar-esquemas.mjs` comprueba que el esquema use la constante
+  exportada y no un número que casualmente coincide. Corre con `node` a secas
+  porque `esquemas.js` importa `'./contrasena.js'` **con la extensión**: Next
+  resuelve las dos formas, pero sin la extensión el módulo no se puede importar
+  sin compilar el proyecto.
+- Zod v4: las formas son `z.email()` y `z.uuid()`, no `z.string().email()`.
+  `z.iso.date()` además **rechaza fechas que no existen** como `2026-02-31`, que
+  antes había que comprobar a mano construyendo un `Date`.
+- **Zod está declarada en `package.json` a propósito.** Antes estaba disponible
+  solo porque la arrastraba `eslint-plugin-react-hooks`. Usarla así es una
+  trampa: el día que esa dependencia cambie, el build se rompe sin que nadie
+  haya tocado una línea nuestra.
+
+  *Mejora pendiente, sin apuro:* que las Server Actions validen el formulario
+  entero con un esquema de objeto en vez de campo por campo. Es mejor estilo,
+  pero **no arregla ninguna duplicación** —eso ya quedó resuelto con que
+  `validacion.js` envuelva a `esquemas.js`— y toca código ya verificado. Va
+  después de Mercado Pago.
+
 ## Claves y variables de entorno
 
 - Las claves van en `.env.local`, nunca en el código. Ese archivo está ignorado
@@ -141,6 +179,66 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 - `supabase/probar-reservas.sh` levanta un Postgres descartable y prueba las
   seis situaciones, incluida la carrera con dos transacciones reales.
 
+## La API (`/api/v1`)
+
+El recorrido completo está en `docs/api.md`. Acá lo que hay que saber antes de
+tocarla.
+
+- **Hoy nada del proyecto la llama.** Las páginas son Server Components y leen
+  los datos llamando a las funciones de `app/lib/` directamente; un `fetch`
+  contra el propio servidor pagaría un viaje de red para pedirse algo a sí
+  mismo. `/salud` es el único endpoint con un propósito que ninguna Server
+  Action puede cubrir —monitoreo externo, que pregunta sin que haya nadie
+  usando el sitio— y los otros diez son un ejercicio. Está dicho así en
+  `docs/api.md` §1 a propósito: **un endpoint documentado como ejercicio es
+  información honesta; uno presentado como pieza de arquitectura cuando nadie
+  lo llama es decorado.** No agregar un consumidor inventado para disimularlo.
+- **No hay Global Error Middleware en App Router.** `proxy.js` corre antes del
+  enrutamiento y no envuelve al handler; `error.js` es para renderizado de
+  páginas y un Route Handler no renderiza. El equivalente se construyó
+  componiendo `manejador()` alrededor de cada handler. **La cobertura es una
+  convención, no una garantía:** un handler exportado sin envolver queda afuera
+  y nadie avisa, así que se cuenta —hoy 11 exportados y 11 envueltos— y el
+  comando está en `docs/api.md` §3.
+- **Un solo ayudante de identidad, `clienteDeApi()`, con dos mecanismos.**
+  Cookie para el navegador (es la misma cookie `HttpOnly` del resto del sitio);
+  `Authorization: Bearer` para un script o una app, que no tiene cookies. **El
+  webhook de Mercado Pago no pasa por ahí y no debe:** se identifica firmando
+  el pedido, que es un tercer mecanismo y va en su propia ruta. Meterlo acá
+  obligaría a que este ayudante acepte "o una firma HMAC" y dejaría de ser el
+  lugar donde se decide quién llama.
+- **El 401 de la API manda `WWW-Authenticate` y el del sitio no.** No es una
+  inconsistencia: el sitio usa cookie y no hay esquema HTTP que corresponda,
+  mientras que la API acepta `Bearer` y entonces sí hay uno que nombrar. El 403
+  no la lleva en ningún caso, porque quien llama ya está identificado.
+- **No hay un solo `DELETE`, y es el dominio, no un olvido.** Las reservas se
+  cancelan y conservan el historial; cancelar tiene una consecuencia que quien
+  llama necesita saber —si el crédito volvió o se perdió— y un 204 sin cuerpo
+  no tendría dónde decirla. Reactivar tampoco es un `PATCH`: es reservar de
+  nuevo, y tiene que volver a pasar por `reservar_clase()` con su candado.
+- **Ningún endpoint reimplementa una regla del negocio.** Cuando apareció la
+  tentación se extrajo la regla a un lugar compartido: la del cupo contra las
+  reservas tomadas vive en `app/lib/clases.js` y la usan el Route Handler y el
+  panel. Copiarla habría dejado al estudio con dos reglas de cupo según por
+  dónde entre el pedido.
+- **El 409 no está en la lista de la materia y hace falta.** "La clase se
+  llenó", "ya hay una clase a esa hora" no son datos inválidos ni recursos
+  ausentes: el pedido estaba bien y lo que cambió fue el estado del sistema.
+- **Un filtro de Supabase sobre una tabla relacionada se descarta en
+  silencio** si el join es externo. `GET /reservas?fecha=` devolvía todo como
+  si no hubiera filtro hasta que se pidió el join como `clases!inner`. Si se
+  agrega un filtro sobre algo que viene de un join, hay que comprobar que
+  **filtre**, no que responda 200.
+- **La migración de las Server Actions a la API va después de Mercado Pago.**
+  Dos motivos. Mercado Pago trae una ruta con un mecanismo de identificación
+  que el proyecto no tiene todavía y toca los créditos, que es lo único que la
+  gente paga: mover escrituras ya verificadas mientras se escribe eso es
+  cambiar dos cimientos a la vez. Y las Server Actions dan mejora progresiva
+  —el formulario de reservas funciona con JavaScript apagado, verificado—, así
+  que pasarlas a `fetch` las rompería sin JavaScript. No es "lo mismo por otro
+  camino": es una decisión sobre qué se pierde, y hay que tomarla con eso a la
+  vista, no como un paso de limpieza.
+
 ## Qué revalidar después de escribir
 
 - **Paquetes** → `/paquetes` y `/`.
@@ -215,6 +313,19 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   administre una sola persona que puede ver el total antes y después en la
   pantalla, pero quitar créditos no es simétrico a otorgarlos: hay que decidir
   qué pasa si ya se usaron para reservar, y esa decisión todavía no está tomada.
+
+- **`/salud` tarda lo que tarde la base en fallar.** Medido apuntando
+  `NEXT_PUBLIC_SUPABASE_URL` a un puerto que rechaza conexiones y
+  recompilando: devuelve el 503 correcto, con `Retry-After`, pero después de
+  **7,0 segundos**, porque la consulta no tiene tiempo límite. Un monitoreo que
+  corte a los 5 segundos va a ver un timeout en vez del 503. Arreglarlo
+  requiere un `fetch` propio con `AbortSignal` en el cliente de Supabase, que
+  es compartido con todo el sitio: no se toca por un endpoint.
+
+- **El 405 de la API no lleva `Allow`.** La RFC pide que un 405 diga qué
+  métodos sí se aceptan. Lo genera Next, no el proyecto, y no la incluye. Se
+  podría agregar exportando un `OPTIONS` por ruta; serían once handlers nuevos
+  cuyo único efecto es una cabecera.
 
 - La validación del cupo contra las reservas ya tomadas se hace en la
   aplicación: se lee la cuenta y después se escribe. Entre las dos cosas

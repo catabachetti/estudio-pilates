@@ -1,54 +1,62 @@
-// Lo que repiten todas las acciones del panel al recibir un formulario.
-//
-// Vive en un archivo propio porque son reglas, no detalles de una pantalla: si
-// la forma de leer un número de un formulario cambia, tiene que cambiar en un
-// solo lugar. Se escribió primero dentro de las acciones de paquetes y se
-// extrajo al aparecer las de clases, que necesitaban exactamente lo mismo.
+import {
+  Uuid,
+  Fecha,
+  Hora,
+  Email,
+  EnteroPositivo,
+} from './esquemas'
 
-// Los ids viajan en campos ocultos, así que pueden traer cualquier cosa.
-// Mandarle basura a Postgres en una columna uuid da un error de tipo, que es
-// ruido en los registros por algo que se puede descartar antes.
-export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+// Ayudantes sobre los esquemas, para las Server Actions.
+//
+// ESTE ARCHIVO YA NO DEFINE NADA. Las reglas viven en app/lib/esquemas.js y acá
+// solo se envuelven con la forma que las acciones del panel vienen usando:
+// funciones que devuelven true/false o un valor convertido.
+//
+// Se mantuvieron los nombres a propósito. Lo que importaba era que no quedaran
+// dos definiciones de "qué es una fecha válida" —una acá y otra en la API—, y
+// eso se resuelve con que los dos caminos partan del mismo esquema. Cambiarle
+// el nombre a nueve lugares no agregaba nada y sí agregaba riesgo.
+//
+// Pendiente anotado en CLAUDE.md: que las acciones validen el formulario entero
+// con un esquema de objeto en vez de campo por campo. Es mejor estilo, pero no
+// arregla ninguna duplicación, así que no corre apuro.
 
 export function esUuid(valor) {
-  return UUID.test(String(valor ?? ''))
+  return Uuid.safeParse(valor).success
 }
 
-// Number('') devuelve 0 y Number('12 clases') devuelve NaN. Ninguna de las dos
-// cosas puede terminar en la base como si fuera un número válido, así que se
-// exige que el texto sean solo dígitos antes de convertirlo.
+// Devuelve NaN cuando no es un entero, que es lo que esperan quienes ya la
+// usan: comprueban con esEnteroPositivo() después.
 export function aEntero(valor) {
+  const r = z_entero(valor)
+  return r === null ? NaN : r
+}
+
+function z_entero(valor) {
   const texto = String(valor ?? '').trim()
-  if (!/^\d+$/.test(texto)) return NaN
-  return Number(texto)
+  // Se exige que el texto sean solo dígitos ANTES de convertir: coerce aceptaría
+  // '12.0', ' 12 ' y '1e2', y en un formulario eso es un error de tipeo, no un
+  // número. El esquema valida el resultado.
+  if (!/^\d+$/.test(texto)) return null
+  const r = EnteroPositivo.safeParse(texto)
+  return r.success ? r.data : Number(texto)
 }
 
 export function esEnteroPositivo(valor) {
   return Number.isInteger(valor) && valor > 0
 }
 
-// Una fecha de formulario: 2026-10-20. Se verifica que exista de verdad, porque
-// el formato por sí solo acepta 2026-02-31.
 export function esFecha(valor) {
-  const texto = String(valor ?? '').trim()
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) return false
-  const [a, m, d] = texto.split('-').map(Number)
-  const f = new Date(a, m - 1, d)
-  return f.getFullYear() === a && f.getMonth() === m - 1 && f.getDate() === d
+  return Fecha.safeParse(typeof valor === 'string' ? valor.trim() : valor).success
 }
 
-// Una hora de formulario: 07:00, o 07:00:00 si el navegador agrega segundos.
-// Se devuelve siempre normalizada a HH:MM para que la base reciba lo mismo
-// venga del navegador que venga.
 export function aHora(valor) {
-  const m = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(String(valor ?? '').trim())
-  return m ? `${m[1]}:${m[2]}` : null
+  const r = Hora.safeParse(valor)
+  return r.success ? r.data : null
 }
 
-// No valida que el correo exista, solo que tenga forma de correo. Lo único que
-// decide de verdad si un correo es real es mandarle un mensaje.
 export function esEmail(valor) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(valor ?? '').trim())
+  return Email.safeParse(valor).success
 }
 
 // UNA ESCRITURA RECHAZADA POR RLS NO DEVUELVE ERROR: devuelve que no modificó

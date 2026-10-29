@@ -430,10 +430,19 @@ El proxy responde según quién pregunta:
 | navegación interna de Next | 307 → `/ingresar?volver=...` |
 | cliente de API | **401** con cuerpo JSON |
 
-**Desvío conocido.** La RFC 9110 pide que un 401 incluya una cabecera
-`WWW-Authenticate` con un desafío. Para sesiones por cookie no hay esquema
-aplicable, así que no se manda ninguna, igual que la mayoría de las
-aplicaciones con login por formulario. Está documentado en el código.
+**Desvío conocido, y su límite.** La RFC 9110 pide que un 401 incluya una
+cabecera `WWW-Authenticate` con un desafío. Para sesiones por cookie no hay
+esquema aplicable, así que **el sitio** no manda ninguna, igual que la mayoría
+de las aplicaciones con login por formulario. Está documentado en el código.
+
+**La API sí la manda**, y no es una inconsistencia: `/api/v1` acepta
+`Authorization: Bearer` como mecanismo de primera clase, así que existe un
+esquema que nombrar, y sin la cabecera un cliente que recibe 401 no tiene de
+dónde deducir cómo identificarse. Medido: `GET /api/v1/reservas` sin
+credenciales y con un token inválido devuelven
+`WWW-Authenticate: Bearer realm="api", charset="UTF-8"`. El 403 no la lleva en
+ningún caso, porque quien llama ya está identificado y repetir el desafío lo
+invitaría a reintentar lo mismo. El detalle está en `docs/api.md` §6.
 
 ### 10.2 El 403 numérico: probado y descartado
 
@@ -484,6 +493,32 @@ La actividad del final del módulo: qué pide cada ruta y qué devuelve.
 | `/cuenta` | **sí** | cualquiera | 307 | 200 | 200 | 307 |
 | `/cuenta/contrasena` | **sí** | cualquiera | 307 | 200 | 200 | 307 |
 | `/admin` y sus cinco pantallas | **sí** | **admin** | 307 | 200 + "Sin permiso" | 200 | **401** |
+
+Y los endpoints de `/api/v1`, que devuelven JSON y por eso no redirigen nunca:
+
+| Ruta | Sesión | Rol | sin sesión | cliente | admin |
+| --- | --- | --- | --- | --- | --- |
+| `GET /api/v1/salud`, `/paquetes`, `/clases`, `/clases/{id}` | no | — | 200 | 200 | 200 |
+| `GET /api/v1/reservas`, `/creditos` | **sí** | cualquiera | **401** | 200 | 200 |
+| `POST /api/v1/reservas`, `PATCH /api/v1/reservas/{id}` | **sí** | cualquiera | **401** | pasa | pasa |
+| `POST /api/v1/clases`, `PATCH /api/v1/clases/{id}` | **sí** | **admin** | **401** | **403** | 200/201 |
+| `GET /api/v1/clases/{id}/reservas` | **sí** | **admin** | **401** | **403** | 200 |
+
+"pasa" y no un número porque ahí la autorización no es lo único que decide: en
+la medición, una cuenta de administración reservando una clase que ya tenía
+tomada y sin créditos propios recibió **409**, y un `PATCH` sobre una reserva
+inexistente recibió **404**. Las dos son respuestas correctas y ninguna es un
+rechazo de permisos — que es justamente lo que esta tabla mide. Lo importante
+es que la columna "sin sesión" diga 401 y que las dos cuentas con sesión pasen
+el control de identidad; lo que venga después lo decide el estado del sistema,
+y eso está medido caso por caso en `docs/api.md` §13.
+
+La diferencia con la tabla de arriba es la que pide el módulo: una **página**
+sin sesión redirige a `/ingresar` guardando el destino, porque hay una persona
+mirando a quien conviene llevar al login. Un **endpoint** devuelve 401 con un
+cuerpo JSON, porque del otro lado hay un programa y un 307 a una pantalla de
+login no le sirve de nada. Y el 403 de la API **sí es un 403 numérico**, no un
+200 con un mensaje: la deuda de §10.2 es de las páginas, no de la API.
 
 Medido con el sitio compilado. Las Server Actions del panel exigen rol en cada
 llamada, independientemente de la pantalla: una acción invocada directo con

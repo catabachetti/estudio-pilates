@@ -3,13 +3,14 @@ import { sesionAdmin } from '../../lib/autorizacion'
 import { clienteConSesion } from '../../lib/supabase-sesion'
 import { precioEnPesos } from '../../datos/sitio'
 import { editarPaquete, cambiarActivo } from '../../acciones/admin-paquetes'
+import { LARGO_NOMBRE, LARGO_INCLUYE } from '../../lib/esquemas'
 
 const MENSAJES = {
-  nombre: 'El nombre no puede quedar vacío ni pasar de 60 caracteres.',
+  nombre: `El nombre no puede quedar vacío ni pasar de ${LARGO_NOMBRE} caracteres.`,
   precio: 'El precio tiene que ser un número entero mayor que cero, sin puntos ni centavos.',
   clases: 'La cantidad de clases tiene que ser un número entero mayor que cero.',
   vigencia: 'La vigencia tiene que ser un número entero de días mayor que cero.',
-  incluye: 'La descripción no puede pasar de 200 caracteres.',
+  incluye: `La descripción no puede pasar de ${LARGO_INCLUYE} caracteres.`,
   orden: 'El orden tiene que ser un número entero de cero para arriba.',
   repetido: 'Ya hay otro paquete con ese nombre.',
   permiso: 'La base rechazó el cambio: tu cuenta no tiene permiso para editar el catálogo.',
@@ -97,7 +98,7 @@ export default async function AdminPaquetesPage({ searchParams }) {
                     id={`nombre-${paquete.id}`}
                     name="nombre"
                     defaultValue={paquete.nombre}
-                    maxLength={60}
+                    maxLength={LARGO_NOMBRE}
                     required
                   />
                 </div>
@@ -167,7 +168,7 @@ export default async function AdminPaquetesPage({ searchParams }) {
                     id={`incluye-${paquete.id}`}
                     name="incluye"
                     defaultValue={paquete.incluye ?? ''}
-                    maxLength={200}
+                    maxLength={LARGO_INCLUYE}
                     rows={2}
                   />
                   <p className="campo-ayuda">
