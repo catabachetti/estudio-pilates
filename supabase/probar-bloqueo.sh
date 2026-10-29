@@ -5,15 +5,20 @@ set -e
 export PATH=/Library/PostgreSQL/18/bin:$PATH
 S="$(mktemp -d)"
 P="$(cd "$(dirname "$0")" && pwd)"
+# Un puerto libre, pedido ahora, y el socket en el directorio temporal propio.
+# Con un puerto fijo y el socket en /tmp, dos de estos scripts corriendo a la
+# vez —o uno que quedo colgado de antes— hacen fallar al otro con
+# "could not start server", que no tiene nada que ver con lo que esta probando.
+PUERTO=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 initdb -D "$S/pg" -U prueba --auth=trust -E UTF8 --locale=C > /dev/null
-pg_ctl -D "$S/pg" -o "-p 55435 -k /tmp -c listen_addresses=127.0.0.1" -l "$S/pg.log" start > /dev/null
+pg_ctl -D "$S/pg" -o "-p $PUERTO -k "$S" -c listen_addresses=127.0.0.1" -l "$S/pg.log" start > /dev/null
 sleep 2
 limpiar() { pg_ctl -D "$S/pg" stop -m fast > /dev/null 2>&1 || true; rm -rf "$S"; }
 trap limpiar EXIT
-q() { psql -h 127.0.0.1 -p 55435 -U prueba -d v -v ON_ERROR_STOP=1 -tA -q "$@"; }
-psql -h 127.0.0.1 -p 55435 -U prueba -d postgres -q -c "create database v;"
-psql -h 127.0.0.1 -p 55435 -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$P/auth-de-mentira.sql"
-for a in "$P"/migraciones/*.sql; do psql -h 127.0.0.1 -p 55435 -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$a"; done
+q() { psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -v ON_ERROR_STOP=1 -tA -q "$@"; }
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d postgres -q -c "create database v;"
+psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$P/auth-de-mentira.sql"
+for a in "$P"/migraciones/*.sql; do psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -q -v ON_ERROR_STOP=1 -f "$a"; done
 
 echo "=== la escalera de espera ==="
 for n in 1 2 3 4 5 6 7 8 9 10 12; do
