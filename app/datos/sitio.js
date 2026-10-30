@@ -87,6 +87,41 @@ export const preguntas = [
 // un paquete) abren WhatsApp con el mensaje ya escrito, para no perder lo que
 // la persona eligio. Cuando E5 este listo, esto se reemplaza por el formulario
 // y el numero queda solo como contacto.
+// LA URL BASE DEL SITIO, EN UN SOLO LUGAR.
+//
+// La necesitan dos cosas de Mercado Pago que tienen que apuntar al mismo sitio:
+// las `back_urls` de la preferencia, a donde vuelve la persona después de
+// pagar, y la `notification_url`, a donde Mercado Pago manda el aviso de pago.
+// Escribirla a mano en los dos lados es la forma de que un día apunten a
+// deploys distintos.
+//
+// Sale del entorno y no de una constante porque cambia según dónde corra:
+//
+//   produccion en Vercel  VERCEL_PROJECT_PRODUCTION_URL, el dominio de verdad
+//   preview en Vercel     VERCEL_URL, la URL de ese deploy puntual, que es la
+//                         que hace falta para que Mercado Pago pueda llamar
+//                         durante las pruebas
+//   acá, en tu máquina    localhost
+//
+// Ninguna lleva el prefijo NEXT_PUBLIC_, así que esto solo se puede leer en el
+// servidor. No importa: las dos cosas que la usan corren en el servidor.
+//
+// SITIO_URL está primero para poder forzarla a mano. Hace falta porque Mercado
+// Pago no acepta `http://localhost` en las back_urls: para probar el checkout
+// de verdad hay que apuntar a una URL pública, y esa es la perilla.
+export function urlDelSitio() {
+  if (process.env.SITIO_URL) return process.env.SITIO_URL
+
+  const produccion = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  if (process.env.VERCEL_ENV === 'production' && produccion) {
+    return `https://${produccion}`
+  }
+
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+
+  return 'http://localhost:3000'
+}
+
 export const MAIL = 'activepilatesref@gmail.com'
 
 export const TELEFONO_WHATSAPP = '5491100000000'
