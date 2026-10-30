@@ -547,6 +547,76 @@ verificó por su cuenta antes de leerla:
 
 ---
 
+## 13.1 La clave que saltea RLS, y cómo se evita que llegue al navegador
+
+El webhook de Mercado Pago llega sin cookies y sin token: del otro lado hay un
+servidor de Mercado Pago, que no tiene cuenta en el estudio. Con la clave
+publishable, `auth.uid()` es null y RLS no le deja leer nada propio ni invocar
+`otorgar_creditos()`. Por eso existe un tercer cliente de Supabase,
+`app/lib/supabase-servicio.js`, con la **clave secreta**.
+
+Esa clave es distinta de las otras dos en algo que importa: el rol
+`service_role` tiene el atributo **BYPASSRLS**. Las políticas no se evalúan
+mal, directamente no corren. Es la única parte del proyecto donde no hay una
+capa debajo, así que todo lo que se escriba con ese cliente pasa por una
+función `security definer` que verifica adentro quién llama, nunca por un
+`.insert()` suelto.
+
+**Tres cosas la mantienen del lado del servidor:**
+
+| Qué | Qué cubre |
+|---|---|
+| la variable **no** lleva `NEXT_PUBLIC_` | Next no la inyecta en el paquete del navegador |
+| el único archivo que importa el cliente es un Route Handler | no hay camino desde un componente |
+| **`import 'server-only'`** como primera línea | si alguien lo importa desde un componente de cliente, **el build falla** |
+
+La tercera es la que convierte un error silencioso en uno ruidoso. Sin ella el
+fallo sería peor que visible: la variable llegaría al navegador como
+`undefined`, el cliente se construiría igual sin quejarse, y reventaría recién
+al usarse, con un error de autenticación que no dice nada de la causa.
+
+**Cómo se verifica, con el agujero abierto y cerrado.** Se agrega a propósito
+el import en `app/components/CampoDeContrasena.jsx`, que es el único componente
+de cliente del proyecto, y se compila:
+
+```
+npm run build
+```
+
+```
+./app/lib/supabase-servicio.js:13:1
+Error: You're importing a module that depends on "server-only" into a React
+Client Component module. This API is only available in Server Components but
+one of its parents is marked with "use client", so this module is also a
+Client Component.
+
+> 13 | import 'server-only'
+
+  Client Component Browser:
+    ./app/lib/supabase-servicio.js [Client Component Browser]
+    ./app/components/CampoDeContrasena.jsx [Client Component Browser]
+    ./app/components/CampoDeContrasena.jsx [Server Component]
+```
+
+El error nombra el archivo, la línea y **la cadena completa de importaciones**,
+que es lo que hace falta para arreglarlo. Después se quita el import y el build
+vuelve a pasar.
+
+Y el otro lado, medido sobre el sitio compilado: ni el valor de la clave ni el
+nombre de la variable aparecen en ningún archivo de `.next/static`.
+
+```
+grep -rl "$SUPABASE_SECRET_KEY" .next/static | wc -l   # 0
+grep -rl 'SUPABASE_SECRET_KEY'  .next/static | wc -l   # 0
+```
+
+**No se usan las Taint APIs de React**, que harían algo parecido con los
+valores en vez de con los módulos: la documentación de la versión instalada las
+marca `experimental` y exigen activar `experimental.taint`. Es la misma
+decisión que se tomó con `forbidden()` en §10.2, y por el mismo motivo.
+
+---
+
 ## 14. Limitaciones conocidas
 
 Lo que no está resuelto, con su motivo. Ninguna es un olvido.
