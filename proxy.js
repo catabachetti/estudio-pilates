@@ -111,7 +111,13 @@ function quiereUnaPagina(request) {
 export const config = {
   // Se saltea los archivos estáticos: refrescar la sesión al pedir una foto no
   // aporta nada y multiplica las llamadas al servidor de auth.
+  //
+  // Y SE SALTEA api/webhooks, que es el aviso de pago de Mercado Pago. Ese
+  // pedido no trae cookies —del otro lado hay un servidor de MP, no un
+  // navegador— así que refrescar la sesión es un viaje de red al servidor de
+  // auth que nunca va a encontrar nada, en cada notificación, sobre una
+  // respuesta que Mercado Pago cronometra y reintenta si tarda.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.svg|icons.svg|imagenes|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)',
+    '/((?!api/webhooks|_next/static|_next/image|favicon.svg|icons.svg|imagenes|.*\\.(?:svg|png|jpg|jpeg|webp)$).*)',
   ],
 }
