@@ -101,8 +101,9 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   *Mejora pendiente, sin apuro:* que las Server Actions validen el formulario
   entero con un esquema de objeto en vez de campo por campo. Es mejor estilo,
   pero **no arregla ninguna duplicación** —eso ya quedó resuelto con que
-  `validacion.js` envuelva a `esquemas.js`— y toca código ya verificado. Va
-  después de Mercado Pago.
+  `validacion.js` envuelva a `esquemas.js`— y toca código ya verificado.
+  Mercado Pago ya está hecho, así que el impedimento de calendario no está
+  más; sigue sin apuro porque no arregla nada roto.
 
 ## Claves y variables de entorno
 
@@ -229,15 +230,61 @@ tocarla.
   si no hubiera filtro hasta que se pidió el join como `clases!inner`. Si se
   agrega un filtro sobre algo que viene de un join, hay que comprobar que
   **filtre**, no que responda 200.
-- **La migración de las Server Actions a la API va después de Mercado Pago.**
-  Dos motivos. Mercado Pago trae una ruta con un mecanismo de identificación
-  que el proyecto no tiene todavía y toca los créditos, que es lo único que la
-  gente paga: mover escrituras ya verificadas mientras se escribe eso es
-  cambiar dos cimientos a la vez. Y las Server Actions dan mejora progresiva
-  —el formulario de reservas funciona con JavaScript apagado, verificado—, así
-  que pasarlas a `fetch` las rompería sin JavaScript. No es "lo mismo por otro
-  camino": es una decisión sobre qué se pierde, y hay que tomarla con eso a la
-  vista, no como un paso de limpieza.
+- **La migración de las Server Actions a la API sigue pendiente, y el motivo
+  que queda no es de calendario.** Decía "después de Mercado Pago"; Mercado
+  Pago ya está hecho. Lo que no caducó: las Server Actions dan **mejora
+  progresiva**, y el formulario de reservas funciona con JavaScript apagado,
+  verificado. Pasarlas a `fetch` las rompería sin JavaScript. No es "lo mismo
+  por otro camino": es una decisión sobre qué se pierde, y hay que tomarla con
+  eso a la vista, no como un paso de limpieza.
+
+## Mercado Pago
+
+El recorrido está en `docs/api.md` §14. Acá lo que se va a olvidar.
+
+- **`current_user` dentro de una función `security definer` es el dueño de la
+  función, no quien la llama.** Medido contra Postgres 18: fuera de la función
+  `current_user` es `service_role`, adentro es `postgres`. Para saber con qué
+  rol entró el pedido se usa `current_setting('role', true)`. El guardia de
+  `otorgar_creditos()` comparaba `current_user` y por eso **rechazaba al
+  webhook**; no se había notado porque las pruebas corrían con sesión de
+  administración, donde `es_admin()` devuelve verdadero y el `or` corta antes.
+  Tampoco sirve `request.jwt.claim.role`: las claves nuevas (`sb_secret_...`)
+  no son JWT, son opacas.
+- **`external_reference` y `compras.mp_payment_id` no son lo mismo y no pueden
+  serlo.** La primera la elegimos nosotros **antes** de que el pago exista y
+  contesta "quién compraba qué"; el segundo lo elige Mercado Pago **después** y
+  es el `unique` que da la idempotencia. Por eso existe
+  `intenciones_de_pago`: la `external_reference` tiene que apuntar a algo.
+- **La intención y la compra no están relacionadas en el esquema.** El vínculo
+  existe solo del lado de Mercado Pago. No se puede preguntarle a la base qué
+  intenciones terminaron en compra. Relacionarlas obligaría a tocar
+  `otorgar_creditos()`, que es la función con la idempotencia probada.
+- **El precio sale de la base, nunca del formulario.** Del formulario viaja
+  solo el id del paquete. Un precio en un campo oculto se edita y se paga el
+  paquete de 12 clases a un peso.
+- **`idempotencyKey` no hace nada para preferencias.** Medido: misma clave,
+  mismo cuerpo, dos preferencias distintas. Lo que protege de acreditar dos
+  veces es el `unique` de `compras.mp_payment_id`.
+- **La regla de los códigos del webhook: si reintentar puede arreglarlo, 500;
+  si no, 200.** Un 200 apaga los reintentos de Mercado Pago, cualquier otro
+  código los enciende. Sin `MP_WEBHOOK_SECRET` se devuelve **500**, no 200:
+  un 200 daría por aceptado un aviso que nadie verificó y el pago se perdería
+  en silencio. Un 404 de Mercado Pago al consultar el pago **también** es 500,
+  porque el aviso llega a veces antes de que el pago se pueda consultar.
+- **El `data.id` de la firma va tal cual lo mandó la URL.** El manifest omite
+  los pares ausentes, así que completarlo desde el cuerpo —que parece una
+  mejora— haría que una firma legítima deje de coincidir.
+- **`POST` a una ruta inexistente devuelve 200 en el deploy, no 404**, con el
+  HTML del not-found y `x-matched-path: /_not-found`. En local da 404. La
+  consecuencia es grave para un webhook: una URL mal escrita en el panel de
+  Mercado Pago recibe 200, el aviso se da por entregado y el pago se pierde.
+  Para saber si una ruta está tomada hay que mirar `x-matched-path`, no el
+  código.
+- **Probar un pago exige un usuario comprador de prueba**, en ventana de
+  incógnito, con tarjeta de prueba y titular `APRO`. Pagar como invitada o con
+  una cuenta real se rechaza con "No pudimos procesar tu pago", y el mensaje no
+  dice por qué.
 
 ## Qué revalidar después de escribir
 

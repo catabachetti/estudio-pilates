@@ -1,7 +1,12 @@
 -- LIMPIEZA DE LOS DATOS DE PRUEBA DE LOS MODULOS 10 Y 11.
 --
 -- NO ES UNA MIGRACION. No va numerada y no describe el esquema: borra filas
--- que se crearon probando, y por eso vive aparte. Correrlo dos veces no hace
+-- que se crearon probando, y por eso vive aparte.
+--
+-- Cubre tres grupos: las clases de 2027, lo de las cuentas con '+' en el
+-- correo, y los pagos de prueba de Mercado Pago, que son los unicos que se
+-- hicieron con la cuenta REAL del estudio y por eso necesitan su propia
+-- seccion. Correrlo dos veces no hace
 -- daño, pero tampoco hay por que.
 --
 -- Se corre desde el editor SQL de Supabase, porque `clases` y `reservas` no
@@ -99,6 +104,58 @@ where user_id in (select id from auth.users where email like '%+%@%');
 -- porque alguien le agrego un alias.
 
 -- ---------------------------------------------------------------------------
+-- 2.5. LOS DATOS DE PRUEBA DE MERCADO PAGO
+-- ---------------------------------------------------------------------------
+-- Estos no los alcanza el predicado de arriba, y conviene entender por que:
+-- la compra de prueba del checkout se hizo con LA CUENTA REAL del estudio, que
+-- no lleva '+' en el correo. Buscar "la cuenta de prueba" no sirve aca.
+--
+-- POR QUE UNA LISTA EXPLICITA Y NO UN PREDICADO. Se podria filtrar por fecha, o
+-- por "compras sin reservas", o por monto. Todas esas reglas aciertan hoy y el
+-- dia que haya pagos reales se llevan alguno. Un pago de prueba se reconoce
+-- porque lo anotamos, no porque tenga una forma distinta.
+--
+-- Si se hacen mas pagos de prueba, se agregan sus id a esta lista.
+
+-- Freno: `creditos.compra_id` es `on delete cascade`, asi que borrar la compra
+-- se lleva sus creditos sola. Pero `reservas.credito_id` NO tiene accion de
+-- borrado, asi que si alguna reserva uso uno de esos creditos, el delete falla
+-- con un error de clave ajena. Postgres hace bien en negarse; esto lo dice con
+-- palabras antes de que pase.
+do $$
+declare
+  usados integer;
+begin
+  select count(*) into usados
+  from reservas r
+  join creditos k on k.id = r.credito_id
+  join compras m on m.id = k.compra_id
+  where m.mp_payment_id in ('186232108573', 'prueba-api-fecha-1');
+
+  if usados > 0 then
+    raise exception
+      'Hay % reserva(s) hechas con creditos de pagos de prueba. Cancelalas primero (o borra esas reservas), porque reservas.credito_id no deja borrar el credito.',
+      usados;
+  end if;
+end $$;
+
+-- La compra primero: la cascada se lleva los creditos.
+delete from compras
+where mp_payment_id in ('186232108573', 'prueba-api-fecha-1');
+
+-- Y las intenciones de pago, TODAS.
+--
+-- No hay forma de distinguir una intencion de prueba de una real mirando la
+-- tabla: la intencion y la compra NO ESTAN RELACIONADAS en el esquema. El
+-- vinculo existe solo del lado de Mercado Pago, en la external_reference del
+-- pago. Esta anotado como observacion en docs/api.md.
+--
+-- Mientras el sitio no haya recibido un pago real, todas las intenciones son
+-- de prueba, y por eso se borran sin filtro. El dia que haya pagos reales esta
+-- linea hay que cambiarla por una lista explicita, igual que la de arriba.
+delete from intenciones_de_pago;
+
+-- ---------------------------------------------------------------------------
 -- 3. COMPROBACION. Las tres cuentas tienen que dar cero.
 -- ---------------------------------------------------------------------------
 select
@@ -106,4 +163,7 @@ select
   (select count(*) from reservas r join clases c on c.id = r.clase_id
      where c.fecha >= date '2027-01-01') as reservas_2027,
   (select count(*) from creditos
-     where user_id in (select id from auth.users where email like '%+%@%')) as creditos_de_prueba;
+     where user_id in (select id from auth.users where email like '%+%@%')) as creditos_de_prueba,
+  (select count(*) from compras
+     where mp_payment_id in ('186232108573', 'prueba-api-fecha-1')) as pagos_de_prueba,
+  (select count(*) from intenciones_de_pago) as intenciones;
