@@ -60,11 +60,19 @@ Entonces, con nombre y apellido:
 | `GET /clases`, `GET /clases/{id}`, `GET /paquetes` | nadie | un cliente que no sea este sitio: una app, un script, una pantalla en el estudio |
 | `GET /reservas`, `POST /reservas`, `PATCH /reservas/{id}`, `GET /creditos` | nadie | lo mismo, con sesión |
 | `POST /clases`, `PATCH /clases/{id}`, `GET /clases/{id}/reservas` | nadie | lo mismo, con rol de administración |
+| **`POST /api/webhooks/mercadopago`** | **Mercado Pago, de verdad** | — |
 
-O sea: **`/salud` tiene un consumidor real pendiente de configurar, y los
-otros diez son un ejercicio hoy.** Lo que los justifica no es que alguien los
-use: es que el módulo pide construirlos, y que son el destino de la migración
-de la sección 12.
+O sea: **`/salud` tiene un consumidor real pendiente de configurar, los otros
+diez de `/api/v1` son un ejercicio hoy, y el webhook es el único endpoint del
+proyecto con un consumidor real y medido.** Lo que justifica a los diez no es
+que alguien los use: es que el módulo pide construirlos, y que son el destino
+de la migración de la sección 12.
+
+**El webhook es la excepción, y no está en `/api/v1`.** Lo llama un servidor de
+Mercado Pago cada vez que un pago cambia de estado, y está verificado contra
+producción: un aviso firmado devolvió
+`{"acreditado":true,"creditos":1,"ya_estaba":false}` y el crédito apareció en
+la cuenta. Tiene su propia sección, la 14.
 
 Lo que **no** se hizo, justamente para no decorar: inventar un consumidor.
 No hay un `'use client'` nuevo llamando a `fetch` para poder decir que la API
@@ -233,11 +241,11 @@ no hay nadie:
 
 **Un tercer cliente que no usa ninguno de los dos: el webhook de Mercado
 Pago.** Los servidores de MP no tienen cuenta en el estudio ni token nuestro.
-Se identifican **firmando el pedido**, y verificar esa firma es un mecanismo
-aparte que va a vivir en su propia ruta cuando llegue ese módulo. No pasa por
-`clienteDeApi()` y no debe: tratar de encajarlo acá obligaría a que este
-ayudante acepte "o una firma HMAC", y entonces dejaría de ser el lugar donde se
-decide quién es quien llama.
+Se identifican **firmando el pedido**, que es un mecanismo aparte y ya existe:
+vive en `POST /api/webhooks/mercadopago` y está explicado en la sección 14. No
+pasa por `clienteDeApi()` y no debe: tratar de encajarlo acá obligaría a que
+este ayudante acepte "o una firma HMAC", y entonces dejaría de ser el lugar
+donde se decide quién es quien llama.
 
 ---
 
@@ -419,6 +427,19 @@ DELETE /api/v1/clases/{id}  ->  405 Method Not Allowed
 
 ## 11. Desvíos y limitaciones conocidas
 
+- **`POST` a una ruta inexistente devuelve 200 en el deploy, no 404.** Medido
+  sobre el sitio deployado: el cuerpo es el HTML del not-found y la cabecera
+  dice `x-matched-path: /_not-found`. En local, con `next start`, los cinco
+  verbos dan 404. La documentación de la versión instalada explica el
+  mecanismo: *"Before streaming starts, Next.js returns a `404` status code.
+  After streaming starts, the status code remains `200`"*. No se pudo aislar si
+  lo causa la versión o el borde de Vercel.
+
+  **La consecuencia es grave y no es teórica:** una URL de webhook mal escrita
+  en el panel de Mercado Pago recibiría **200**, el aviso se daría por
+  entregado y el pago se perdería en silencio. Por eso, para saber si una ruta
+  está tomada hay que mirar `x-matched-path`, no el código de estado.
+
 - **El 405 no lleva `Allow`.** La RFC pide que un 405 diga qué métodos sí se
   aceptan. Lo genera Next, no el proyecto, y no la incluye. Se podría agregar
   exportando un `OPTIONS` por ruta; no se hizo porque serían once handlers
@@ -445,18 +466,23 @@ DELETE /api/v1/clases/{id}  ->  405 Method Not Allowed
 
 ---
 
-## 12. Pendiente: migrar las Server Actions, después de Mercado Pago
+## 12. Pendiente: migrar las Server Actions
 
 Hoy el panel y el formulario de reservas escriben por Server Actions, y la API
 tiene endpoints equivalentes que nadie llama. Eso es dos caminos a lo mismo, y
 a la larga uno de los dos tiene que ganar.
 
-**La migración va después de Mercado Pago, no antes**, y el motivo es el orden
-de los riesgos. Mercado Pago trae una ruta nueva con un mecanismo de
-identificación que el proyecto todavía no tiene —verificar una firma— y toca
-los créditos, que son lo único que la gente paga. Mover las escrituras que hoy
-funcionan, y que están verificadas con pruebas, mientras se escribe eso, es
-cambiar dos cimientos a la vez.
+**Esta sección decía "después de Mercado Pago". Mercado Pago ya está hecho**, y
+el motivo por el que iba después se cumplió como se esperaba: trajo una ruta
+nueva con un mecanismo de identificación que el proyecto no tenía —verificar
+una firma— y toca los créditos, que son lo único que la gente paga. Haber
+movido al mismo tiempo escrituras que ya funcionaban habría sido cambiar dos
+cimientos a la vez, y el módulo de pagos tuvo bastantes sorpresas por su cuenta
+(el guardia de rol que rechazaba al webhook, la `idempotencyKey` que no
+funciona, el aviso que no llegaba) como para agregarle otra variable.
+
+Así que el impedimento de calendario ya no está. Lo que queda es la razón de
+fondo, que es la de abajo y no caducó.
 
 Hay además una razón que no es de calendario: las Server Actions dan
 **mejora progresiva**. El formulario de reservas funciona con JavaScript
@@ -494,6 +520,13 @@ node docs/ejemplos/probar-esquemas.mjs
 
 # que las reglas de reserva sigan siendo las de la base, no las del handler
 supabase/probar-reservas.sh
+
+# el webhook de pagos, trece casos, sin deployar y sin pagar nada
+MP_WEBHOOK_SECRET=cualquier-cosa npx next start -p 3001
+MP_WEBHOOK_SECRET=cualquier-cosa node docs/ejemplos/probar-webhook.mjs
+
+# que Mercado Pago acepte el cuerpo de la preferencia (llama a la API de verdad)
+node docs/ejemplos/probar-preferencia.mjs
 ```
 
 Resultados medidos sobre el sitio compilado y servido con `next start`, no en
@@ -535,6 +568,224 @@ desarrollo.
 | `PATCH /reservas/{id}` `{"estado":"confirmada"}` | 400 | 400 `datos_invalidos` |
 | `PATCH /reservas/{id}` inexistente | 404 | 404 `no_encontrado` |
 | `DELETE /reservas/{id}` | 405 | 405 |
+
+---
+
+## 14. El webhook de Mercado Pago
+
+Es el único endpoint del proyecto que alguien llama de verdad, y el único que
+acredita créditos.
+
+### 14.1 Por qué está fuera de `/api/v1`
+
+Los endpoints de `/api/v1` son recursos nuestros, con un contrato que nosotros
+versionamos: si mañana cambiamos la forma de una respuesta, sacamos `/api/v2`.
+Acá el contrato **es de Mercado Pago**. La forma del cuerpo, las cabeceras, el
+nombre del query param y los códigos que espera los decide ellos. Ponerlo en
+`/api/v1` daría a entender que podemos versionarlo, y no podemos.
+
+### 14.2 El tercer mecanismo de identificación
+
+La sección 5 habla de dos: cookie y `Bearer`. Este es el tercero y no pasa por
+`clienteDeApi()`.
+
+| Mecanismo | Quién | Cómo |
+|---|---|---|
+| cookie de sesión | un navegador | la cookie `HttpOnly` del sitio |
+| `Authorization: Bearer` | un script, una app | el JWT que emite Supabase |
+| **firma HMAC** | **un servidor de Mercado Pago** | firma el pedido con un secreto compartido |
+
+El tercero es distinto en algo de fondo: **del otro lado no hay una cuenta en el
+estudio.** Mercado Pago no se registra, no tiene sesión y no tiene token
+nuestro. Por eso el ayudante de identidad de `/api/v1` no sirve acá, y meterlo
+a la fuerza obligaría a que acepte "o una firma HMAC", con lo cual dejaría de
+ser el lugar donde se decide quién llama.
+
+Y por eso el webhook es el único que usa `app/lib/supabase-servicio.js`, el
+cliente con la clave secreta: sin sesión, `auth.uid()` es null y RLS no le deja
+leer la intención ni invocar `otorgar_creditos()`.
+
+### 14.3 La firma
+
+**Se usa el validador oficial del SDK, no una copia hecha a mano.** El motivo
+es concreto: la documentación de Mercado Pago **ya no publica la plantilla del
+manifest**, remite al validador del SDK. Escribir el HMAC copiándolo de un blog
+es escribir una verificación de seguridad que nadie garantiza.
+
+Leído del código del SDK, que es la fuente autoritativa:
+
+```
+manifest = "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
+```
+
+- los pares con valor ausente **se omiten**; el `;` final va siempre
+- HMAC-SHA256, digest hex, comparación en tiempo constante
+- `ts` y `v1` salen del header `x-signature`, con formato `ts=...,v1=...`
+- `data.id` sale del **query param**, no del cuerpo
+
+Dos cosas que afirman los blogs y que el SDK **no** hace: minusculizar el
+`data.id`, y leerlo de `data_id`.
+
+**Se pasa `toleranceSeconds: 300`.** Si no se pasa, el validador **no controla
+la antigüedad**: una notificación vieja y legítima se podría reenviar para
+siempre. No es un detalle opcional, es la defensa contra repetición.
+
+**El `data.id` va tal cual lo mandó la URL**, sin completarlo desde el cuerpo si
+falta. El manifest omite el par cuando el valor no está, así que la firma se
+calculó con lo que haya en la query: completarlo cambiaría el manifest y una
+firma legítima dejaría de coincidir. Es la trampa más fácil de este endpoint,
+porque "si falta, lo busco en el cuerpo" parece una mejora.
+
+**El cuerpo no está firmado.** De ahí que no se le crea nada más que de qué pago
+habla, y que el estado real se consulte con `GET /v1/payments/:id`. Es el error
+que la materia marca en la diapositiva 17, y la firma lo explica: lo único que
+la firma cubre son tres valores, no el JSON.
+
+### 14.4 El orden: se procesa y después se responde
+
+La diapositiva 13 dice *"Recepción → Responder 200 → Validar firma → Consultar
+pago"*, o sea contestar antes de procesar. **Acá se hace al revés.**
+
+No es por no poder. `after()` existe y es **estable** en la versión instalada
+(`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/after.md`,
+`import { after } from 'next/server'`): sirve en Route Handlers, corre dentro
+de la `maxDuration` de la ruta y corre incluso si la respuesta falló. Se midió
+y se descartó.
+
+El motivo es que para un webhook de pagos el orden de la diapositiva es
+incorrecto, no solo incómodo en serverless: **los reintentos de Mercado Pago
+son la única red de seguridad que hay.** Si contestamos 200 y después Supabase
+no responde, Mercado Pago lo da por entregado y no reintenta nunca: un pago
+cobrado queda sin créditos y el único rastro es un `console.error`.
+Procesando antes, un fallo transitorio devuelve 500 y Mercado Pago reintenta.
+
+El canje, dicho: la respuesta tarda lo que tarde acreditar en vez de ser
+inmediata. Con `maxDuration = 15` el presupuesto está acotado, y si se agota, la
+función corta y Mercado Pago reintenta, que es seguro.
+
+**Lo que sí iría en `after()`**: el correo al comprador. Si falla, no hay que
+reintentar el aviso entero.
+
+### 14.5 La regla de los códigos
+
+**Si reintentar puede arreglarlo, 500. Si no, 200.** Un 200 apaga los
+reintentos; cualquier otro código los enciende durante horas.
+
+| Situación | Código | Por qué |
+|---|---|---|
+| `approved`, acreditado ahora | 200 | listo |
+| `approved`, ya acreditado | 200 | `ya_estaba: true`. Reintentar no cambia nada |
+| `pending` / `in_process` | 200 | no hay nada que hacer; va a llegar otro aviso |
+| `rejected` / `cancelled` | 200 | reintentar no lo va a aprobar |
+| `refunded` / `charged_back` | 200 + registro fuerte | **hoy no hay forma de quitar créditos.** Reintentar no la crea |
+| tipo que no es `payment` | 200 | no nos interesa |
+| firma ausente, malformada o que no coincide | **401** | falló la identidad |
+| `ts` fuera de la ventana de 300 s | **401** | lo mismo |
+| falta `data.id` | **400** | el pedido está mal armado |
+| la `external_reference` no corresponde a ninguna intención | 200 + registro | reintentar no la va a crear |
+| **falta `MP_WEBHOOK_SECRET`** | **500** | ver abajo |
+| **Mercado Pago responde 404 al consultar el pago** | **500** | ver abajo |
+| Supabase o la API de MP no responden | 500 | acá sí queremos el reintento |
+
+Dos de esas filas no se deducen de la regla y hay que argumentarlas.
+
+**Sin el secreto configurado, 500.** Un 200 daría por aceptado un aviso que
+nadie verificó, y Mercado Pago dejaría de reintentar: el pago se perdería en
+silencio. Un 401 diría que la firma está mal, cuando el que está mal es nuestro
+servidor. Con 500, Mercado Pago reintenta durante horas, que es exactamente el
+tiempo que hace falta para darse cuenta y cargar la variable. **Esto se verificó
+en producción por accidente**, antes de cargar la clave: el endpoint devolvía
+500 y no 200, que es lo que hubiera hecho perder un pago.
+
+**Un 404 de Mercado Pago también devuelve 500.** Por la regla parecería un 200,
+porque reintentar no va a crear un pago que no existe. Pero el aviso llega a
+veces **antes** de que el pago se pueda consultar, y ahí el 404 es transitorio y
+el reintento es justo lo que lo arregla. Entre dar por procesado un pago que sí
+existía y reintentar al vacío unas horas, el primer error cuesta un crédito que
+alguien pagó. Se distingue en el registro para que un 404 persistente se
+reconozca sin deducirlo.
+
+**El 401 no usa `noAutenticado()`**, por dos motivos. Uno: agregaría
+`WWW-Authenticate: Bearer`, y acá sería mentira — Mercado Pago no se identifica
+con un Bearer, y no hay nada que pueda hacer con ese desafío. Dos: **el motivo
+del rechazo no va en la respuesta**, solo al registro junto al `x-request-id`.
+Decirle a quien llama si falló el hash o si el timestamp estaba fuera de ventana
+le da un oráculo: no alcanza para falsificar un HMAC, pero sí para saber qué
+parte del intento estuvo bien.
+
+### 14.6 `proxy.js` no lo toca
+
+El matcher excluye `api/webhooks`. El pedido del webhook no trae cookies, así
+que refrescar la sesión era un viaje de red al servidor de auth que nunca iba a
+encontrar nada, en cada notificación, sobre una respuesta que Mercado Pago
+cronometra y reintenta si tarda.
+
+### 14.7 Cómo se verifica
+
+**Trece casos sin deployar y sin pagar nada.** El HMAC es simétrico, así que el
+script firma con la misma clave que el handler:
+
+```
+MP_WEBHOOK_SECRET=cualquier-cosa npx next start -p 3001
+MP_WEBHOOK_SECRET=cualquier-cosa node docs/ejemplos/probar-webhook.mjs
+```
+
+| caso | código | motivo registrado |
+|---|---|---|
+| sin header `x-signature` | 401 | `MissingSignatureHeader` |
+| firma con otra clave | 401 | `SignatureMismatch` |
+| hash incorrecto | 401 | `SignatureMismatch` |
+| header sin `ts` ni `v1` | 401 | `MalformedSignatureHeader` |
+| header con `v1` pero sin `ts` | 401 | `MissingTimestamp` |
+| `ts` que no es un número | 401 | `MalformedSignatureHeader` |
+| `ts` de hace una hora | 401 | `TimestampOutOfTolerance` |
+| `ts` del futuro lejano | 401 | `TimestampOutOfTolerance` |
+| `type=merchant_order` | 200 | ignorado |
+| **firma válida sin `x-request-id`** | 500 | pasó la firma |
+| sin `data.id` | 400 | |
+| pago inexistente | 500 | |
+| sin la clave configurada | 500 | |
+
+El caso de `x-request-id` ausente es el que **prueba la regla de omitir pares**:
+el manifest queda `id:<...>;ts:<...>;` y si se armara mal daría 401 en vez de
+llegar a consultar el pago.
+
+**Y el camino de un pago aprobado, contra producción.** Eso no se puede probar
+local: hace falta un `payment_id` real del sandbox, que sale de pagar una vez
+con tarjeta de prueba. Medido con el pago `186232108573`:
+
+```
+aviso firmado        200  {"pago":186232108573,"acreditado":true,"creditos":1,"ya_estaba":false}
+el mismo, otra vez   200  {"creditos":0,"ya_estaba":true}
+y otra vez           200  {"creditos":0,"ya_estaba":true}
+```
+
+Después de los tres avisos: **una** fila en `compras` y **un** crédito. Eso es
+la idempotencia del `unique` de `compras.mp_payment_id`, probada en producción
+con el camino completo, no con una función aislada.
+
+**La prueba del comprador de prueba.** El entorno de prueba de Mercado Pago
+exige iniciar sesión como un **usuario comprador de prueba**, en ventana de
+incógnito, y pagar con tarjeta de prueba y titular `APRO`. Pagar como invitada
+con una cuenta real se rechaza con "No pudimos procesar tu pago", y el mensaje
+no dice por qué.
+
+### 14.8 Lo que falta y lo que se sabe que falta
+
+- **La intención y la compra no están relacionadas en el esquema.** El vínculo
+  existe solo del lado de Mercado Pago, en la `external_reference` del pago.
+  Consecuencia práctica: no se puede preguntarle a la base "¿qué intenciones
+  terminaron en compra?". Para el tamaño del estudio no molesta, y agregarle a
+  `compras` una columna que apunte a la intención querría decir tocar
+  `otorgar_creditos()`, que es la función con la idempotencia probada.
+- **No se pueden quitar créditos**, así que un `refunded` se registra y nada
+  más. Es una deuda anotada en `CLAUDE.md`, no un olvido: quitar créditos no es
+  simétrico a otorgarlos, porque hay que decidir qué pasa si ya se usaron para
+  reservar.
+- **El webhook no guarda los avisos que recibe.** Si hiciera falta auditar por
+  qué un pago no se acreditó, hoy eso se busca en los registros de Vercel y en
+  el panel de Mercado Pago, que muestra los intentos de entrega. Una tabla de
+  avisos recibidos sería lo siguiente si el volumen creciera.
 
 ---
 

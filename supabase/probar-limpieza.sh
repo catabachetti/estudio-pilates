@@ -46,6 +46,22 @@ q -q -c "insert into reservas (user_id, clase_id, credito_id)
                 (select id from clases where fecha = date '2027-06-01'),
                 (select id from creditos limit 1);"
 
+echo "=== se fabrica tambien un pago de prueba de Mercado Pago ==="
+# Con la cuenta REAL (sin '+'), que es el caso que la seccion 2.5 cubre.
+q -q -c "insert into compras (user_id, paquete_id, monto, estado, mp_payment_id)
+         select (select id from auth.users where email = 'estudio@ejemplo.com'),
+                (select id from paquetes order by orden limit 1), 18000, 'aprobada', '186232108573';"
+q -q -c "insert into creditos (user_id, compra_id, vence_el)
+         select m.user_id, m.id, current_date + 30 from compras m
+         where m.mp_payment_id = '186232108573';"
+q -q -c "insert into intenciones_de_pago (user_id, paquete_id)
+         select (select id from auth.users where email = 'estudio@ejemplo.com'),
+                (select id from paquetes order by orden limit 1)
+         from generate_series(1, 3);"
+echo "  compras con ese pago: $(q -tAc "select count(*) from compras where mp_payment_id='186232108573';")"
+echo "  creditos que cuelgan: $(q -tAc "select count(*) from creditos k join compras m on m.id=k.compra_id where m.mp_payment_id='186232108573';")"
+echo "  intenciones:          $(q -tAc 'select count(*) from intenciones_de_pago;')"
+
 echo "=== 1. el freno: una reserva de cuenta real en una clase de 2027 ==="
 q -q -c "insert into reservas (user_id, clase_id)
          select (select id from auth.users where email = 'estudio@ejemplo.com'),
@@ -64,13 +80,40 @@ grep -o 'Hay .*No se borra nada\.' "$D/err.txt" | sed 's/^/  /'
   || { echo "  FALLO: borro algo igual"; exit 1; }
 echo "  y las dos clases de 2027 siguen ahi"
 
+echo "=== 1b. el otro freno: una reserva hecha con un credito del pago de prueba ==="
+# reservas.credito_id no tiene accion de borrado, asi que Postgres se negaria
+# con un error de clave ajena. El script lo dice con palabras antes.
+q -q -c "insert into reservas (user_id, clase_id, credito_id)
+         select (select id from auth.users where email = 'estudio@ejemplo.com'),
+                (select id from clases where fecha < date '2027-01-01' order by fecha limit 1),
+                (select k.id from creditos k join compras m on m.id = k.compra_id
+                 where m.mp_payment_id = '186232108573' limit 1);"
+# Se saca la reserva ajena de la clase de 2027 para que NO corte el freno anterior
+# y se vea cortar este.
+q -q -c "delete from reservas where clase_id in (select id from clases where fecha >= date '2027-01-01');"
+if q -q -f "$P/limpiar-datos-de-prueba.sql" > /dev/null 2>"$D/err2.txt"; then
+  echo "  FALLO: no freno, borro un credito que una reserva usaba"; exit 1
+fi
+if ! grep -q 'reservas.credito_id no deja borrar' "$D/err2.txt"; then
+  echo "  FALLO: corto, pero por otro motivo:"; sed 's/^/    /' "$D/err2.txt"; exit 1
+fi
+grep -o 'Hay .*no deja borrar el credito\.' "$D/err2.txt" | sed 's/^/  /'
+[ "$(q -tAc "select count(*) from compras where mp_payment_id='186232108573';")" = "1" ] \
+  || { echo "  FALLO: borro la compra igual"; exit 1; }
+echo "  y la compra de prueba sigue ahi"
+# Ahora si se saca esa reserva, para que el borrado pueda completarse.
+q -q -c "delete from reservas;"
+
 echo "=== 2. sin esa reserva ajena, el borrado completo ==="
 q -q -c "delete from reservas where user_id = (select id from auth.users where email = 'estudio@ejemplo.com');"
 q -q -f "$P/limpiar-datos-de-prueba.sql" > /dev/null
 for par in "select count(*) from clases where fecha >= date '2027-01-01'|clases de 2027" \
            "select count(*) from reservas|reservas" \
            "select count(*) from creditos where user_id in (select id from auth.users where email like '%+%@%')|creditos de prueba" \
-           "select count(*) from compras where user_id in (select id from auth.users where email like '%+%@%')|compras de prueba"; do
+           "select count(*) from compras where user_id in (select id from auth.users where email like '%+%@%')|compras de prueba" \
+           "select count(*) from compras where mp_payment_id in ('186232108573','prueba-api-fecha-1')|pagos de prueba de MP" \
+           "select count(*) from creditos k join compras m on m.id=k.compra_id where m.mp_payment_id='186232108573'|creditos de ese pago" \
+           "select count(*) from intenciones_de_pago|intenciones de pago"; do
   consulta="${par%%|*}"; nombre="${par##*|}"
   n=$(q -tAc "$consulta")
   printf '  %-22s %s' "$nombre" "$n"
