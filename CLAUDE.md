@@ -295,6 +295,49 @@ El recorrido está en `docs/api.md` §14. Acá lo que se va a olvidar.
   una cuenta real se rechaza con "No pudimos procesar tu pago", y el mensaje no
   dice por qué.
 
+## Pruebas
+
+El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
+
+- **Todo se corre a mano y hay que verlo fallar alguna vez.** No hay CI, y es
+  una decisión: a días de la entrega, una suite que corre a mano y cuyas
+  contrapruebas se vieron fallar vale más que un CI que nadie mira.
+- **Las E2E van contra el sitio compilado**, no contra `next dev`.
+  `playwright.config.js` levanta `npm run build && next start -p 3100` solo.
+  `npm run test:e2e`, `test:e2e:ui` para el modo interactivo,
+  `test:e2e:informe` para el informe de la última corrida.
+- **Las credenciales de administración salen de `.env.local`**, como
+  `E2E_ADMIN_EMAIL` y `E2E_ADMIN_PASSWORD`. La cuenta no se puede crear desde
+  la prueba: el rol `admin` lo pone una fila de `perfiles` y una cuenta nueva
+  nace `cliente`. Si faltan, esa especificación se saltea con el motivo. La
+  misma contraseña está en `cuentas-de-prueba.local`: **si se rota, hay que
+  cambiarla en los dos**.
+- **LAS TRES REGLAS DE DATOS DE LAS E2E**, que están implementadas en
+  `e2e/fixtures.js` porque hay **un solo proyecto de Supabase** y las pruebas
+  escriben donde escribe el sitio:
+  1. **No se toca el catálogo.** `paquetes`, `tipos_clase` e `instructoras`
+     solo se leen: un precio cambiado por una prueba queda cambiado.
+  2. **Lo que se crea no puede correr el final de la agenda.** Las clases de
+     prueba van en una fecha **que ya tiene clases**, a una hora que el estudio
+     no usa. Crearlas en 2027 —que es lo que hacía la primera versión— mueve
+     `ultimaFecha` y `/reservar` deja avanzar por semanas vacías.
+  3. **Lo que se crea, se borra**, en el teardown del fixture.
+- **Una cuenta nueva por corrida**, creada con `POST /auth/v1/admin/users` y
+  `email_confirm: true`, borrada al terminar. Así funciona igual con "Confirm
+  email" activado o apagado, que es un pendiente de `docs/seguridad.md` §15.
+- **Sin reintentos.** `retries: 0`: un reintento convierte una prueba inestable
+  en una que "pasa a veces".
+- **Los tres motores solo donde pagan**: las pruebas sin estado y las sin
+  JavaScript; las que escriben, solo Chromium. Y **WebKit no puede abrir sesión
+  contra el sitio local**, porque descarta la cookie `Secure` sobre http: las
+  dos pruebas que necesitan sesión se saltean ahí con el motivo medido. No se
+  baja `secure` para que pasen.
+- **La lista de pantallas del panel está escrita a mano a propósito** en
+  `admin.spec.js`, y es la única excepción a "un dato, una fuente" del
+  proyecto: **una prueba que se actualiza sola no puede detectar una
+  regresión.** Si la lista se leyera del código, agregar una pantalla sin
+  protegerla la agregaría también a la prueba y la prueba pasaría.
+
 ## Qué revalidar después de escribir
 
 - **Paquetes** → `/paquetes` y `/`.
@@ -383,47 +426,43 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   podría agregar exportando un `OPTIONS` por ruta; serían once handlers nuevos
   cuyo único efecto es una cabecera.
 
-- **La agenda se agota el 5 de diciembre de 2026 y no se extiende sola.** Las
-  clases las generó el seed una vez, ocho semanas, y nada las renueva. No
-  molesta para la entrega —la fecha es posterior— pero es el tipo de cosa que
-  no se ve hasta que alguien entra a reservar y no hay nada.
+- **La agenda no se extiende sola, pero ya hay con qué extenderla.** Las clases
+  las generó `seed.sql` una vez, ocho semanas, y nada las renueva. Las dos
+  formas de agregar semanas, y ninguna es automática:
 
-  **Lo que va a mostrar `/reservar` es peor que un aviso**, y vale leerlo
-  entero antes de arreglarlo. `agendaDeLaSemana()` calcula `ultimaFecha` con la
-  última clase de la tabla **sin mirar si ya pasó**:
+  1. **`supabase/extender-agenda.sql`**, desde el editor SQL. Es la misma
+     consulta de `generate_series` del seed pero **solo sobre `clases`**: no
+     toca `instructoras`, `tipos_clase` ni `paquetes`. Eso es lo que la
+     distingue de correr el seed, que entra al catálogo con
+     `on conflict ... do update` y **revierte** cualquier precio editado desde
+     `/admin/paquetes`. Verificado con contraprueba: se editó un precio a 999,
+     `extender-agenda` lo dejó, el seed lo pisó. Es idempotente por el
+     `on conflict (fecha, hora) do nothing`, así que las clases existentes
+     quedan con sus reservas.
+  2. **`/admin/clases`**, de a una. Mejor si la grilla de esa semana es
+     distinta de la habitual.
 
-  ```js
-  .eq('estado', 'programada').order('fecha', { ascending: false }).limit(1)
-  ```
+  Lo que sigue faltando es que algo **avise** cuando queden pocas semanas. Hoy
+  hay que acordarse.
 
-  Así que después del 5 de diciembre `ultimaFecha` sigue siendo `2026-12-05`,
-  o sea **no es null**, o sea `sinAgenda` es `false`. Y `sinAgenda` es lo único
-  que enciende el bloque `AgendaNoDisponible`, el que dice "No hay clases
-  cargadas". **Ese aviso, que existe exactamente para este caso, no se va a
-  disparar nunca**: solo lo haría si la tabla quedara sin ninguna clase, y las
-  pasadas no se borran. Lo que se va a ver es la agenda normal con la tira de
-  días vacía y la tabla sin turnos.
+- **El aviso de agenda agotada estaba roto y se arregló.** `ultimaFecha` tomaba
+  la última clase de la tabla **sin mirar si ya había pasado**, y como las
+  pasadas no se borran nunca era null: `sinAgenda` nunca se encendía y el
+  bloque "No hay clases cargadas" —que existe exactamente para ese caso— no se
+  podía mostrar nunca. Lo que se iba a ver era la agenda normal con la tira de
+  días vacía y sin explicación.
 
-  Esto está **leído del código, no medido**: reproducirlo hoy requiere mover el
-  reloj o dejar todas las clases en el pasado, porque el día pedido se acota a
-  `<= ultimaFecha` y no se puede navegar a una semana vacía.
+  Arreglado con `.gte('fecha', claveHoy)` en la consulta. Y probado en dos
+  niveles, porque uno solo no alcanzaba:
+  `supabase/probar-agenda-agotada.sh` demuestra contra Postgres que sobre una
+  tabla con solo clases pasadas la consulta con filtro da `NULL` y sin filtro
+  da una fecha; `docs/ejemplos/probar-agenda.mjs` demuestra que la función usa
+  ese null para poner `sinAgenda`, **y afirma que la consulta siga llevando el
+  filtro**, así que si alguien lo saca esa prueba falla.
 
-  **Las dos salidas, y ninguna está hecha:**
-
-  1. **Cargarlas desde `/admin/clases`**, que ya existe y ya crea clases de a
-     una. No hace falta código nuevo; hace falta que alguien se acuerde. Es la
-     salida razonable si el estudio arma la grilla semana a semana, que es como
-     trabaja.
-  2. **Una tarea programada** que agregue una semana por semana. Es más
-     trabajo: hay que decidir qué grilla replica, qué pasa con los feriados y
-     qué hace si ya existen las clases de esa semana —el `unique (fecha, hora)`
-     la va a rechazar, que es lo correcto pero hay que manejarlo—. Y hay que
-     decidir dónde corre.
-
-  **Si se elige la 1, conviene al menos que el aviso funcione**, porque hoy no
-  puede: alcanzaría con comparar `ultimaFecha` contra hoy en vez de contra null.
-  Es un arreglo chico y está sin hacer a propósito, para no mezclarlo con la
-  decisión de arriba.
+  De paso, `agendaDeLaSemana()` ahora recibe el cliente por parámetro, como
+  `resumenDeCreditos()` y `cupoQueDejaGenteAfuera()`. Era la única que se lo
+  creaba adentro, y por eso la única que no se podía probar.
 
 - La validación del cupo contra las reservas ya tomadas se hace en la
   aplicación: se lee la cuenta y después se escribe. Entre las dos cosas

@@ -132,6 +132,20 @@ test.describe('reservar y cancelar', () => {
     paginaCliente,
     cuenta,
   }) => {
+    // ESTA PRUEBA ES LEGITIMAMENTE MAS LENTA que las demás: acredita por RPC,
+    // busca una clase con lugar —que son dos consultas más— y después hace
+    // cuatro navegaciones con una escritura en cada una. `test.slow()` triplica
+    // el tiempo límite.
+    //
+    // No es un reintento disfrazado. La configuración tiene `retries: 0` a
+    // propósito, porque un reintento convierte una prueba inestable en una que
+    // "pasa a veces". Esto declara cuánto tarde puede tardar, que es distinto.
+    //
+    // El motivo concreto: en una corrida de catorce esta prueba agotó los 30
+    // segundos, sin error de aserción. No se volvió a reproducir en tres
+    // corridas posteriores, así que queda dicho que pasó y no explicado.
+    test.slow()
+
     await acreditar(cuenta.id, 1)
 
     // Una clase QUE YA EXISTE, con lugar libre y a más de dos días. Crear una

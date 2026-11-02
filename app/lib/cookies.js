@@ -21,9 +21,27 @@ export function opcionesDeCookie(opciones) {
     httpOnly: true,
 
     // La cookie no viaja por HTTP sin cifrar. En desarrollo queda apagado
-    // porque `next dev` sirve por http; los navegadores igual tratan a
-    // localhost como origen seguro, así que con `next start` local tampoco
-    // molesta.
+    // porque `next dev` sirve por http.
+    //
+    // ANTES ESTE COMENTARIO DECIA que con `next start` local tampoco molesta
+    // "porque los navegadores igual tratan a localhost como origen seguro".
+    // **Eso es falso para WebKit**, y lo encontraron las pruebas de Playwright
+    // sin JavaScript. Medido con los tres motores contra `next start` en
+    // http://localhost, enviando el formulario de ingreso:
+    //
+    //   chromium   2 cookies sb- guardadas (las dos Secure)   sesion abierta
+    //   firefox    2 cookies sb- guardadas (las dos Secure)   sesion abierta
+    //   webkit     0 cookies                                  sesion NO abierta
+    //
+    // O sea que Chromium y Firefox hacen la excepcion de localhost y WebKit no:
+    // descarta una cookie `Secure` que llega por http sin avisar.
+    //
+    // NO SE TOCA. Bajar `secure` para que una prueba pase seria debilitar la
+    // defensa real por comodidad local. La consecuencia esta acotada y dicha:
+    // no se puede iniciar sesion con Safari ni con WebKit contra el sitio local
+    // servido por http, y las dos pruebas E2E que necesitan sesion se saltean
+    // en ese motor con este motivo escrito. En produccion todo es https, asi
+    // que ahi no aplica.
     secure: process.env.NODE_ENV === 'production',
 
     // Viaja en navegaciones normales pero no en pedidos que nacen de otro

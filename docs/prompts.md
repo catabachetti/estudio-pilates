@@ -995,12 +995,167 @@ el orden a propósito para comprobar que el arnés lo ve: ahora corta con
 
 **Predicción:**
 
+### El arreglo vivía en el editor de Supabase y no en el repositorio
+
+El error de orden de arriba se corrigió **a mano, en el editor SQL de
+Supabase**, para que la limpieza terminara. Eso hizo su trabajo: la limpieza
+corrió. Pero el archivo del repositorio quedó con el orden malo, y el `git
+diff` estaba vacío.
+
+**La asimetría es lo que importa:** el arreglo quedó en el lugar que se usa una
+vez, y faltaba en el único que se va a volver a correr. La próxima vez que
+alguien abra `limpiar-datos-de-prueba.sql` —o que lo corra un arnés— vuelve a
+fallar con el mismo 23503, y esta vez sin nadie que recuerde por qué.
+
+**Cómo se detectó:** mirando `git diff` antes de dar el arreglo por aplicado, en
+vez de creerle al informe de que ya estaba. El informe era cierto —se había
+corregido— y aun así el repositorio estaba mal.
+
+**Regla que queda:** un arreglo hecho en una consola, un panel o un editor web
+no está hecho hasta que está en el repositorio. Vale para el SQL, para las
+variables de entorno de Vercel y para la configuración de Supabase; de las tres
+hubo un episodio en este proyecto.
+
+### Un argumento verdadero justificando una decisión incorrecta
+
+El orden equivocado no estaba sin explicar. Tenía un comentario al lado:
+
+> Los creditos y las compras de las cuentas de prueba. Los creditos antes, que
+> son los que referencian la compra.
+
+**Eso es cierto.** `creditos.compra_id` referencia `compras`, así que los
+créditos tienen que borrarse antes que las compras, y el comentario describe
+bien esa parte. Lo que falla es que mira **una sola de las dos puntas**: hacia
+abajo ve `creditos → compras` y hacia arriba no ve `reservas → creditos`, que
+es la que no tiene acción de borrado y la que hace fallar el delete.
+
+Y lo irónico es que el mismo archivo ya tenía esa otra punta escrita, en la
+sección 2.5:
+
+> `creditos.compra_id` es `on delete cascade`, así que borrar la compra se
+> lleva sus créditos sola. Pero `reservas.credito_id` **no** tiene acción de
+> borrado.
+
+**Por qué esto es peor que no tener comentario.** Un `delete` sin explicación
+invita a revisar el orden. Uno con un argumento correcto al lado invita a
+confiar: quien lo lee verifica que el argumento sea verdadero, comprueba que
+sí, y sigue. El comentario funcionó como una prueba que no podía fallar.
+
+**Regla que queda:** cuando un comentario justifica un orden, tiene que nombrar
+**todas** las referencias que lo obligan, no la primera que se encontró. Y si
+el mismo archivo ya explica una restricción en otra sección, eso es señal de
+que las dos secciones tenían que compartir el razonamiento en vez de
+descubrirlo cada una por su cuenta.
+
 **Aprendizaje:** un arnés que prueba un script de borrado tiene que incluir una
 fila que el script **no** borra. Los tres casos originales eran variaciones de
 "todo lo que hay es de prueba", y ese es el escenario fácil: el difícil es el
 mixto, que es el único que existe en la realidad. Y el patrón general, que ya
 está en la sección de depuración: el argumento escrito al lado de una línea
 puede ser correcto y aun así no alcanzar.
+
+---
+
+## 2026-11-02 — Módulo 13: las pruebas encontrando afirmaciones falsas
+
+**Prompt:** Playwright, casos de prueba formales, reportes de bug y una sección
+de depuración. Lo que ya existía —seis arneses de Postgres y cinco pruebas de
+nodo— se reconoce y no se rehace.
+
+### Las pruebas encontraron dos afirmaciones falsas escritas en el código
+
+No bugs de lógica: **comentarios que afirmaban algo que no era cierto**, y que
+nadie iba a descubrir leyendo.
+
+**La primera, en `app/lib/cookies.js`:** *"los navegadores igual tratan a
+localhost como origen seguro, así que con `next start` local tampoco molesta"*.
+Las pruebas sin JavaScript fallaron solo en WebKit. Medido con los tres motores
+enviando el mismo formulario contra `next start` en http://localhost:
+
+| motor | cookies `sb-` guardadas | sesión |
+| --- | --- | --- |
+| chromium | 2, las dos `Secure` | abre |
+| firefox | 2, las dos `Secure` | abre |
+| webkit | **0** | **no abre** |
+
+WebKit **descarta** una cookie `Secure` que llega por http, sin avisar.
+
+**Lo que no se hizo:** bajar `secure` para que la prueba pase. Debilitar una
+defensa real por comodidad local es el canje equivocado. Se corrigió el
+comentario para que diga lo medido y se saltean **solo** las dos pruebas que
+necesitan sesión, **solo** en WebKit, con el motivo escrito en el `skip`.
+
+**La segunda es el bug de la agenda**, que ya tiene su entrada arriba: el aviso
+"No hay clases cargadas" no se podía mostrar nunca.
+
+### Un caso nuevo del patrón, y el peor escrito al revés
+
+`page.evaluate(() => 1)` **funciona con `javaScriptEnabled: false`**, porque
+Playwright lo ejecuta por el protocolo de depuración y no por la página. Era el
+detector obvio de "¿está apagado de verdad?" y mide otra cosa: es el tipo (a) de
+la clasificación.
+
+**Y lo importante es la otra dirección.** Si el detector hubiera sido "si
+`evaluate` funciona, JavaScript está prendido", habría afirmado algo falso y el
+paso siguiente habría sido perseguir una configuración que estaba bien. Se cazó
+antes de que engañara a nadie porque la aserción estaba escrita como "esto tiene
+que fallar", y falló al revés.
+
+El detector que sirve es de comportamiento y usa la única pieza de cliente del
+proyecto: con JavaScript, escribir en el campo mueve el `<meter>`; sin
+JavaScript queda quieto. **Contraprobado**: se le prendió JavaScript al proyecto
+y el medidor pasó de 0 a 4. Que haya un solo componente de cliente lo convierte
+en un detector exacto — una propiedad útil que sale de una decisión de
+arquitectura tomada por otro motivo.
+
+### La excepción a "un dato, una fuente", y por qué es una excepción
+
+Las cinco pantallas del panel están **escritas a mano** en `admin.spec.js`, no
+leídas de la navegación. Eso duplica un dato, que es lo que el proyecto prohíbe
+desde septiembre.
+
+**El motivo: una prueba que se actualiza sola no puede detectar una regresión.**
+Si la lista se leyera del código, agregar una pantalla sin protegerla la
+agregaría también a la prueba, la prueba la recorrería y pasaría. Escrita a
+mano, queda corta y avisa.
+
+**La regla de la fuente única aplica al código, no a lo que el código afirma
+sobre sí mismo.** Una prueba es una afirmación independiente: si sale del mismo
+lugar que lo que verifica, no verifica nada. Es el tipo (c) del patrón —una
+comprobación que no puede fallar— aplicado a la estructura de la prueba y no a
+su contenido.
+
+### Dos clases de contraprueba, que no prueban lo mismo
+
+Vale distinguirlas porque en esta ronda se usaron las dos y se parecen:
+
+- **La que prueba que el arreglo sirve.** Al arnés de limpieza se le invirtió el
+  orden de los `delete` y cortó con `reservas_credito_id_fkey`. Antes del caso
+  nuevo, pasaba. Eso prueba que **la prueba** detecta el fallo.
+- **La que prueba que una afirmación es cierta.** En `extender-agenda.sql` se
+  editó un precio a 999, se corrió el extensor y siguió en 999; se corrió el
+  seed y lo pisó a 18000. **Eso no prueba que el archivo funcione: prueba que la
+  afirmación de su encabezado es cierta.** Es la diferencia entre documentar y
+  demostrar.
+
+### Una prueba inestable, dicha y no explicada
+
+La de reservar y cancelar agotó los 30 segundos en una corrida de catorce, sin
+error de aserción, y no se reprodujo en tres corridas posteriores. Lleva
+`test.slow()` con el motivo y la aclaración de que no es un reintento
+disfrazado: `retries: 0` sigue puesto.
+
+**Queda dicha y no explicada**, que es más honesto que taparla con un reintento.
+Si vuelve, se investiga con la traza, que la configuración ya graba.
+
+**Predicción:**
+
+**Aprendizaje:** las pruebas de navegador no encontraron bugs de lógica —esos
+los habían encontrado los arneses de la base— sino **afirmaciones falsas sobre
+el entorno**: qué hace un navegador con una cookie, qué significa que una
+función de Playwright funcione. Son cosas que no se deducen del código porque no
+están en el código, y por eso correr tres motores pagó donde correr tres veces
+el mismo no habría cambiado nada.
 
 ---
 
