@@ -659,14 +659,50 @@ email". Ver 2.1.
 
 ## 15. Pendientes antes de la entrega
 
-**Bloqueante: `Site URL` tiene que volver a la de Vercel.** Hoy está en
-`http://localhost:3000` para poder probar la recuperación. Si se entrega así,
-**el correo de recuperación manda a cada persona a su propia computadora**,
-donde no hay nada escuchando. El flujo se ve roto y el motivo no es evidente
-mirando el código.
+Esta lista solo sirve si lo que enumera está realmente pendiente. Un documento
+que lista cosas ya resueltas deja de ser creíble para las que sí lo están, así
+que lo resuelto se mueve abajo con la fecha en vez de borrarse: el motivo por
+el que era un riesgo sigue siendo información útil.
 
-**Activar "Confirm email"**, que cierra la fuga de 2.1 y hace falta igual para
-un sitio real.
+### Pendiente, verificado el 2 de noviembre de 2026
+
+**Activar "Confirm email".** Cierra la fuga de `user_already_exists` de §2.1 y
+hace falta igual para un sitio real. Hoy está apagado a propósito, para no
+bloquear las cuentas de prueba mientras se desarrolla.
+
+Se comprueba sin entrar al panel, porque Supabase lo expone:
+
+```
+curl -s "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/settings" \
+  -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" | grep autoconfirm
+```
+
+```
+"mailer_autoconfirm": true     <- Confirm email APAGADO
+```
+
+Cuando esté activado, ese valor pasa a `false`. **Medido el 2 de noviembre de
+2026: sigue en `true`.**
+
+**Limpiar los datos de prueba.** `supabase/limpiar-datos-de-prueba.sql`, que no
+se corrió todavía a propósito: se deja para cuando termine de probarse todo.
+Cubre las clases de 2027, las cuentas con `+alias` y los pagos de prueba de
+Mercado Pago. Las cuentas en sí se borran a mano desde el panel, de a una.
+
+### Resuelto
+
+**`Site URL` volvió a la de Vercel** — 19 de octubre de 2026, verificado con
+captura del panel. Durante el desarrollo de la recuperación de contraseña
+estuvo en `http://localhost:3000`, y eso era un bloqueante de verdad: entregado
+así, **el correo de recuperación manda a cada persona a su propia
+computadora**, donde no hay nada escuchando. El flujo se ve roto y el motivo no
+es evidente mirando el código, porque no está en el código.
+
+Queda anotado por dos razones. Una: si alguien vuelve a apuntarlo a localhost
+para probar, tiene que acordarse de volverlo. Dos: **no se puede verificar
+desde afuera.** Ninguna API de Supabase expone el `Site URL`, así que la única
+comprobación posible es mirar el panel. Es la diferencia con el pendiente de
+arriba, que sí se puede medir con un `curl`.
 
 ---
 
