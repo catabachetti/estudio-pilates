@@ -266,6 +266,15 @@ El recorrido está en `docs/api.md` §14. Acá lo que se va a olvidar.
 - **`idempotencyKey` no hace nada para preferencias.** Medido: misma clave,
   mismo cuerpo, dos preferencias distintas. Lo que protege de acreditar dos
   veces es el `unique` de `compras.mp_payment_id`.
+- **Mercado Pago tiene una clave secreta distinta por modo, y los avisos de
+  pagos de cuentas de prueba llegan firmados con la de "Modo de prueba".** No
+  es deducible: el pago dice `live_mode: true`, la URL estaba cargada en el
+  campo de modo productivo y el evento tildado era el correcto. El síntoma fue
+  un **401 en cada aviso**, idéntico a un error de firma propio, y la única
+  forma de verlo fue el historial de notificaciones del panel, donde el filtro
+  de ambiente decía "Prueba". Por eso el handler acepta las dos:
+  `MP_WEBHOOK_SECRET` y `MP_WEBHOOK_SECRET_PRUEBA`. Si alguna vez vuelve a dar
+  401 en todo, **mirar el ambiente en el panel antes de revisar el código.**
 - **La regla de los códigos del webhook: si reintentar puede arreglarlo, 500;
   si no, 200.** Un 200 apaga los reintentos de Mercado Pago, cualquier otro
   código los enciende. Sin `MP_WEBHOOK_SECRET` se devuelve **500**, no 200:

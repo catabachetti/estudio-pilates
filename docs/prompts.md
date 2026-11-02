@@ -796,6 +796,134 @@ escribimos nosotros, sí.**
 
 ---
 
+## 2026-11-02 — Módulo 12: Mercado Pago, y una clave por ambiente
+
+**Prompt:** integrar Mercado Pago sandbox. Preferencia, Checkout Pro, webhook
+con validación de firma y acreditación de créditos.
+
+### El hallazgo: Mercado Pago tiene una clave secreta distinta por modo
+
+El pago de prueba salió **aprobado** y el crédito **no apareció**. El webhook
+respondía **401 a cada aviso**, que es exactamente lo que devuelve cuando una
+firma no coincide.
+
+Todo lo verificable desde el código decía que estaba bien:
+
+| Qué se comprobó | Resultado |
+| --- | --- |
+| el pago existe y está aprobado | `186232108573`, `approved / accredited` |
+| la intención quedó escrita | sí, 6 filas |
+| `external_reference` ↔ intención | coincide exacto |
+| `notification_url` de la preferencia | correcta |
+| el comprador era un usuario de prueba | sí, `test_user_…@testuser.com` |
+| la ruta está tomada en el deploy | `x-matched-path: /api/webhooks/mercadopago` |
+| la clave de Vercel coincide con la local | **200 a un aviso que firmé yo** |
+
+La última fila es la que más engañaba, y es un error de método mío: **firmé con
+la misma clave que tenía Vercel, así que la prueba era simétrica conmigo misma.**
+Demostraba que Vercel y `.env.local` tenían el mismo valor, no que ese valor
+fuera el que Mercado Pago usa para firmar. Una clave equivocada pero consistente
+pasa esa prueba sin que se note. Es la misma familia que los episodios
+anteriores: una comprobación que no puede fallar no comprueba nada.
+
+**La causa:** el panel tiene **dos** claves de firma, *Modo productivo* y *Modo
+de prueba*, y los avisos de pagos hechos con cuentas de prueba llegan firmados
+con la de **Modo de prueba**. Nada de lo visible lo sugiere:
+
+- el pago dice **`live_mode: true`**, no `false`
+- la URL estaba cargada en el campo de **modo productivo**, y era la correcta
+- el evento tildado era **Pagos (legacy)**, el que corresponde
+- que la cuenta vendedora sea de prueba solo se ve en `GET /users/me`, en `tags`
+
+**Cómo se detectó:** el **historial de notificaciones del panel de Mercado
+Pago**, donde cada aviso trae un filtro de ambiente que decía **"Prueba"**. Ni
+los registros del servidor ni la API lo dicen, y no pueden: del lado nuestro un
+aviso firmado con la otra clave es **indistinguible de uno falsificado**, y
+tiene que serlo. Esa es la parte que vale recordar — el 401 era correcto; lo
+que faltaba era la pregunta "¿de qué ambiente viene?", que no se puede contestar
+desde el código.
+
+**Corrección aplicada:** el handler acepta las dos claves,
+`MP_WEBHOOK_SECRET` y `MP_WEBHOOK_SECRET_PRUEBA`, y **registra con qué modo
+validó**, que es el dato que faltaba. Cuando hay solo una configurada y la firma
+falla, el registro agrega que el 401 puede ser de configuración y no de
+seguridad, para no volver a buscar el problema donde no está.
+
+`docs/ejemplos/probar-webhook-dos-claves.sh` prueba las cuatro combinaciones, e
+incluye **a propósito el estado que perdió el aviso**: solo la clave productiva
+cargada y firma de prueba, 401. Sin esa fila el arreglo no se distingue de un
+cambio cosmético.
+
+### El guardia de rol que rechazaba al webhook
+
+`otorgar_creditos()` dejaba entrar al webhook con
+`current_user = 'service_role'`. **Dentro de una función `security definer`,
+`current_user` es el dueño de la función, no quien la llama.** Medido contra
+Postgres 18, imitando cómo PostgREST atiende un pedido con la clave secreta:
+
+| Expresión | Fuera | Dentro de `security definer` |
+| --- | --- | --- |
+| `current_user` | `service_role` | el dueño (`postgres`) |
+| `session_user` | `authenticator` | `authenticator` |
+| `current_setting('role')` | `service_role` | **`service_role`** |
+
+Esa rama **no se cumplía nunca**. No se había notado porque las pruebas de
+idempotencia corrieron con sesión de administración, donde `es_admin()` ya
+devuelve verdadero y el `or` corta antes de llegar ahí: la condición que
+importaba nunca se evaluó.
+
+Tampoco sirve `request.jwt.claim.role`, que mide bien en una prueba local: las
+claves nuevas (`sb_secret_...`) **no son JWT**, son opacas.
+
+### La `idempotencyKey` que no hace nada
+
+El SDK la acepta y parecía la defensa contra un doble clic. **Medido: misma
+clave y el mismo cuerpo devuelven dos preferencias distintas.**
+
+La primera versión de esa prueba mandaba un cuerpo **distinto** en la segunda
+llamada, así que no probaba nada: un resultado diferente podía ser por el cuerpo
+y no por la clave. Corregida, el resultado es concluyente. Se quitó del código:
+dejarla puesta habría sido una protección aparente, que es peor que ninguna.
+
+Lo que protege de verdad contra acreditar dos veces es el `unique` de
+`compras.mp_payment_id`, probado en producción: tres avisos del mismo pago, una
+compra y un crédito.
+
+### Un POST a una ruta inexistente devuelve 200
+
+Medido sobre el deploy: el cuerpo es el HTML del not-found y la cabecera dice
+`x-matched-path: /_not-found`. En local, con `next start`, los cinco verbos dan
+404. La documentación de la versión instalada explica el mecanismo: *"Before
+streaming starts, Next.js returns a `404` status code. After streaming starts,
+the status code remains `200`"*. No se pudo aislar si lo causa la versión o el
+borde de Vercel.
+
+Importa porque **una URL de webhook mal escrita recibiría 200**, el aviso se
+daría por entregado y el pago se perdería en silencio. De ahí la regla
+operativa: para saber si una ruta está tomada hay que mirar `x-matched-path`, no
+el código.
+
+Y tener una página de 404 propia **no lo arregla**: cambia el cuerpo, no el
+código.
+
+### Lo que el sandbox exige y no dice
+
+Pagar como invitada o con una cuenta real se rechaza con *"No pudimos procesar
+tu pago"*, sin más explicación. La documentación oficial pide **iniciar sesión
+como usuario comprador de prueba**, en ventana de incógnito, con tarjeta de
+prueba y titular `APRO`. El mensaje de error no apunta a nada de eso.
+
+**Predicción:**
+
+**Aprendizaje:** una prueba que uso para verificar una credencial compartida
+tiene que firmar con la credencial **del otro lado**, no con la mía. Si las dos
+puntas salen del mismo archivo, lo único que se comprueba es que el archivo es
+igual a sí mismo. Y cuando un sistema externo tiene ambientes, el ambiente es
+un dato de entrada más: no estaba en ninguna de las cosas que medí porque no se
+me ocurrió que existiera.
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título
