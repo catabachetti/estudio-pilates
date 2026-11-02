@@ -796,6 +796,369 @@ escribimos nosotros, sí.**
 
 ---
 
+## 2026-11-02 — Módulo 12: Mercado Pago, y una clave por ambiente
+
+**Prompt:** integrar Mercado Pago sandbox. Preferencia, Checkout Pro, webhook
+con validación de firma y acreditación de créditos.
+
+### El hallazgo: Mercado Pago tiene una clave secreta distinta por modo
+
+El pago de prueba salió **aprobado** y el crédito **no apareció**. El webhook
+respondía **401 a cada aviso**, que es exactamente lo que devuelve cuando una
+firma no coincide.
+
+Todo lo verificable desde el código decía que estaba bien:
+
+| Qué se comprobó | Resultado |
+| --- | --- |
+| el pago existe y está aprobado | `186232108573`, `approved / accredited` |
+| la intención quedó escrita | sí, 6 filas |
+| `external_reference` ↔ intención | coincide exacto |
+| `notification_url` de la preferencia | correcta |
+| el comprador era un usuario de prueba | sí, `test_user_…@testuser.com` |
+| la ruta está tomada en el deploy | `x-matched-path: /api/webhooks/mercadopago` |
+| la clave de Vercel coincide con la local | **200 a un aviso que firmé yo** |
+
+La última fila es la que más engañaba, y es un error de método mío: **firmé con
+la misma clave que tenía Vercel, así que la prueba era simétrica conmigo misma.**
+Demostraba que Vercel y `.env.local` tenían el mismo valor, no que ese valor
+fuera el que Mercado Pago usa para firmar. Una clave equivocada pero consistente
+pasa esa prueba sin que se note. Es la misma familia que los episodios
+anteriores: una comprobación que no puede fallar no comprueba nada.
+
+**La causa:** el panel tiene **dos** claves de firma, *Modo productivo* y *Modo
+de prueba*, y los avisos de pagos hechos con cuentas de prueba llegan firmados
+con la de **Modo de prueba**. Nada de lo visible lo sugiere:
+
+- el pago dice **`live_mode: true`**, no `false`
+- la URL estaba cargada en el campo de **modo productivo**, y era la correcta
+- el evento tildado era **Pagos (legacy)**, el que corresponde
+- que la cuenta vendedora sea de prueba solo se ve en `GET /users/me`, en `tags`
+
+**Cómo se detectó:** el **historial de notificaciones del panel de Mercado
+Pago**, donde cada aviso trae un filtro de ambiente que decía **"Prueba"**. Ni
+los registros del servidor ni la API lo dicen, y no pueden: del lado nuestro un
+aviso firmado con la otra clave es **indistinguible de uno falsificado**, y
+tiene que serlo. Esa es la parte que vale recordar — el 401 era correcto; lo
+que faltaba era la pregunta "¿de qué ambiente viene?", que no se puede contestar
+desde el código.
+
+**Corrección aplicada:** el handler acepta las dos claves,
+`MP_WEBHOOK_SECRET` y `MP_WEBHOOK_SECRET_PRUEBA`, y **registra con qué modo
+validó**, que es el dato que faltaba. Cuando hay solo una configurada y la firma
+falla, el registro agrega que el 401 puede ser de configuración y no de
+seguridad, para no volver a buscar el problema donde no está.
+
+`docs/ejemplos/probar-webhook-dos-claves.sh` prueba las cuatro combinaciones, e
+incluye **a propósito el estado que perdió el aviso**: solo la clave productiva
+cargada y firma de prueba, 401. Sin esa fila el arreglo no se distingue de un
+cambio cosmético.
+
+### El guardia de rol que rechazaba al webhook
+
+`otorgar_creditos()` dejaba entrar al webhook con
+`current_user = 'service_role'`. **Dentro de una función `security definer`,
+`current_user` es el dueño de la función, no quien la llama.** Medido contra
+Postgres 18, imitando cómo PostgREST atiende un pedido con la clave secreta:
+
+| Expresión | Fuera | Dentro de `security definer` |
+| --- | --- | --- |
+| `current_user` | `service_role` | el dueño (`postgres`) |
+| `session_user` | `authenticator` | `authenticator` |
+| `current_setting('role')` | `service_role` | **`service_role`** |
+
+Esa rama **no se cumplía nunca**. No se había notado porque las pruebas de
+idempotencia corrieron con sesión de administración, donde `es_admin()` ya
+devuelve verdadero y el `or` corta antes de llegar ahí: la condición que
+importaba nunca se evaluó.
+
+Tampoco sirve `request.jwt.claim.role`, que mide bien en una prueba local: las
+claves nuevas (`sb_secret_...`) **no son JWT**, son opacas.
+
+### La `idempotencyKey` que no hace nada
+
+El SDK la acepta y parecía la defensa contra un doble clic. **Medido: misma
+clave y el mismo cuerpo devuelven dos preferencias distintas.**
+
+La primera versión de esa prueba mandaba un cuerpo **distinto** en la segunda
+llamada, así que no probaba nada: un resultado diferente podía ser por el cuerpo
+y no por la clave. Corregida, el resultado es concluyente. Se quitó del código:
+dejarla puesta habría sido una protección aparente, que es peor que ninguna.
+
+Lo que protege de verdad contra acreditar dos veces es el `unique` de
+`compras.mp_payment_id`, probado en producción: tres avisos del mismo pago, una
+compra y un crédito.
+
+### Un POST a una ruta inexistente devuelve 200
+
+Medido sobre el deploy: el cuerpo es el HTML del not-found y la cabecera dice
+`x-matched-path: /_not-found`. En local, con `next start`, los cinco verbos dan
+404. La documentación de la versión instalada explica el mecanismo: *"Before
+streaming starts, Next.js returns a `404` status code. After streaming starts,
+the status code remains `200`"*. No se pudo aislar si lo causa la versión o el
+borde de Vercel.
+
+Importa porque **una URL de webhook mal escrita recibiría 200**, el aviso se
+daría por entregado y el pago se perdería en silencio. De ahí la regla
+operativa: para saber si una ruta está tomada hay que mirar `x-matched-path`, no
+el código.
+
+Y tener una página de 404 propia **no lo arregla**: cambia el cuerpo, no el
+código.
+
+### Lo que el sandbox exige y no dice
+
+Pagar como invitada o con una cuenta real se rechaza con *"No pudimos procesar
+tu pago"*, sin más explicación. La documentación oficial pide **iniciar sesión
+como usuario comprador de prueba**, en ventana de incógnito, con tarjeta de
+prueba y titular `APRO`. El mensaje de error no apunta a nada de eso.
+
+**Predicción:**
+
+**Aprendizaje:** una prueba que uso para verificar una credencial compartida
+tiene que firmar con la credencial **del otro lado**, no con la mía. Si las dos
+puntas salen del mismo archivo, lo único que se comprueba es que el archivo es
+igual a sí mismo. Y cuando un sistema externo tiene ambientes, el ambiente es
+un dato de entrada más: no estaba en ninguna de las cosas que medí porque no se
+me ocurrió que existiera.
+
+---
+
+## 2026-11-02 — Dos hallazgos de los datos de prueba
+
+**Prompt:** módulo 13. Al armar las pruebas E2E apareció primero uno y después,
+corriendo la limpieza, el otro.
+
+### Los datos de prueba degradaron el sitio sin que ninguna línea estuviera mal
+
+`/reservar` dejaba avanzar semana por semana por unas treinta y cinco semanas
+**vacías**. El final real de la agenda era el 2026-12-05 y se podía llegar al
+2026-12-14 y seguir.
+
+La causa no está en el código. `agendaDeLaSemana()` decide hasta dónde se puede
+avanzar con la fecha de la última clase programada de la tabla:
+
+```js
+siguiente: aClave(lunesSiguiente) <= ultimaFecha ? aClave(lunesSiguiente) : null
+```
+
+Y hace **exactamente** lo que dice su propio comentario: *"hacia adelante, hasta
+donde haya clases cargadas: el límite ya no es una constante del código"*. Eso
+era una mejora deliberada sobre una versión anterior que tenía el límite escrito
+a mano.
+
+Lo que estaba mal eran **los datos**: ocho clases de prueba en 2027, creadas
+probando los endpoints de administración del módulo 11, con fechas elegidas
+justamente para que se distinguieran de las reales. La última era el 2027-07-07.
+
+**Lo que esto enseña**, y es lo que lo hace valer una entrada: una revisión de
+código no lo habría encontrado nunca, porque no hay código que revisar. Y una
+prueba sobre base vacía tampoco: el síntoma **necesita** datos sembrados para
+existir. Apareció porque la prueba E2E iba a crear clases en 2027 y se midió qué
+rango ofrecía la agenda antes de escribirla.
+
+**Efecto secundario sobre las pruebas:** la regla de datos que había escrito
+—"lo que las pruebas creen, lo crean en 2027", para que la limpieza las
+levante— reintroducía el problema **en cada corrida**, y peor: si una corrida se
+corta antes del cleanup, queda. Cambiada: las clases de prueba se crean en una
+fecha que **ya tiene clases**, a una hora que el estudio no usa, así
+`ultimaFecha` no se mueve. Y la prueba de reservar usa una clase existente en
+vez de fabricar una.
+
+### El script de limpieza tenía el mismo error de orden que su propio freno prevenía
+
+Corriendo la limpieza contra datos de verdad, falló con **23503**: borraba los
+créditos de las cuentas de prueba **antes** que las reservas que los
+referencian.
+
+Lo irónico es que el script ya tenía un freno para exactamente este problema,
+pero en otra sección. La 2.5, la de los pagos de Mercado Pago, lo explica:
+
+> `creditos.compra_id` es `on delete cascade`, así que borrar la compra se lleva
+> sus créditos sola. Pero `reservas.credito_id` **no** tiene acción de borrado.
+
+Y el comentario de la sección 2 decía *"los créditos antes, que son los que
+referencian la compra"*. Eso es **cierto** —y es la razón por la que los
+créditos van antes que `compras`— pero mira una sola de las dos puntas:
+`creditos → compras` hacia abajo, y se olvida de `reservas → creditos` hacia
+arriba. Un argumento correcto que justifica un orden incorrecto es peor que
+ningún argumento, porque invita a no revisarlo.
+
+**Por qué el arnés no lo vio.** `probar-limpieza.sh` tenía tres casos y en los
+tres las reservas de las cuentas de prueba estaban en clases de 2027, que el
+script borra **primero**. Ninguno ponía a una cuenta de prueba a reservar en una
+clase que el script **no** toca. En los datos reales sí había una.
+
+**Corregido y contraprobado.** Se agregó ese cuarto caso, y después se invirtió
+el orden a propósito para comprobar que el arnés lo ve: ahora corta con
+`reservas_credito_id_fkey`, el mismo 23503. Antes del caso nuevo, pasaba.
+
+**Predicción:**
+
+### El arreglo vivía en el editor de Supabase y no en el repositorio
+
+El error de orden de arriba se corrigió **a mano, en el editor SQL de
+Supabase**, para que la limpieza terminara. Eso hizo su trabajo: la limpieza
+corrió. Pero el archivo del repositorio quedó con el orden malo, y el `git
+diff` estaba vacío.
+
+**La asimetría es lo que importa:** el arreglo quedó en el lugar que se usa una
+vez, y faltaba en el único que se va a volver a correr. La próxima vez que
+alguien abra `limpiar-datos-de-prueba.sql` —o que lo corra un arnés— vuelve a
+fallar con el mismo 23503, y esta vez sin nadie que recuerde por qué.
+
+**Cómo se detectó:** mirando `git diff` antes de dar el arreglo por aplicado, en
+vez de creerle al informe de que ya estaba. El informe era cierto —se había
+corregido— y aun así el repositorio estaba mal.
+
+**Regla que queda:** un arreglo hecho en una consola, un panel o un editor web
+no está hecho hasta que está en el repositorio. Vale para el SQL, para las
+variables de entorno de Vercel y para la configuración de Supabase; de las tres
+hubo un episodio en este proyecto.
+
+### Un argumento verdadero justificando una decisión incorrecta
+
+El orden equivocado no estaba sin explicar. Tenía un comentario al lado:
+
+> Los creditos y las compras de las cuentas de prueba. Los creditos antes, que
+> son los que referencian la compra.
+
+**Eso es cierto.** `creditos.compra_id` referencia `compras`, así que los
+créditos tienen que borrarse antes que las compras, y el comentario describe
+bien esa parte. Lo que falla es que mira **una sola de las dos puntas**: hacia
+abajo ve `creditos → compras` y hacia arriba no ve `reservas → creditos`, que
+es la que no tiene acción de borrado y la que hace fallar el delete.
+
+Y lo irónico es que el mismo archivo ya tenía esa otra punta escrita, en la
+sección 2.5:
+
+> `creditos.compra_id` es `on delete cascade`, así que borrar la compra se
+> lleva sus créditos sola. Pero `reservas.credito_id` **no** tiene acción de
+> borrado.
+
+**Por qué esto es peor que no tener comentario.** Un `delete` sin explicación
+invita a revisar el orden. Uno con un argumento correcto al lado invita a
+confiar: quien lo lee verifica que el argumento sea verdadero, comprueba que
+sí, y sigue. El comentario funcionó como una prueba que no podía fallar.
+
+**Regla que queda:** cuando un comentario justifica un orden, tiene que nombrar
+**todas** las referencias que lo obligan, no la primera que se encontró. Y si
+el mismo archivo ya explica una restricción en otra sección, eso es señal de
+que las dos secciones tenían que compartir el razonamiento en vez de
+descubrirlo cada una por su cuenta.
+
+**Aprendizaje:** un arnés que prueba un script de borrado tiene que incluir una
+fila que el script **no** borra. Los tres casos originales eran variaciones de
+"todo lo que hay es de prueba", y ese es el escenario fácil: el difícil es el
+mixto, que es el único que existe en la realidad. Y el patrón general, que ya
+está en la sección de depuración: el argumento escrito al lado de una línea
+puede ser correcto y aun así no alcanzar.
+
+---
+
+## 2026-11-02 — Módulo 13: las pruebas encontrando afirmaciones falsas
+
+**Prompt:** Playwright, casos de prueba formales, reportes de bug y una sección
+de depuración. Lo que ya existía —seis arneses de Postgres y cinco pruebas de
+nodo— se reconoce y no se rehace.
+
+### Las pruebas encontraron dos afirmaciones falsas escritas en el código
+
+No bugs de lógica: **comentarios que afirmaban algo que no era cierto**, y que
+nadie iba a descubrir leyendo.
+
+**La primera, en `app/lib/cookies.js`:** *"los navegadores igual tratan a
+localhost como origen seguro, así que con `next start` local tampoco molesta"*.
+Las pruebas sin JavaScript fallaron solo en WebKit. Medido con los tres motores
+enviando el mismo formulario contra `next start` en http://localhost:
+
+| motor | cookies `sb-` guardadas | sesión |
+| --- | --- | --- |
+| chromium | 2, las dos `Secure` | abre |
+| firefox | 2, las dos `Secure` | abre |
+| webkit | **0** | **no abre** |
+
+WebKit **descarta** una cookie `Secure` que llega por http, sin avisar.
+
+**Lo que no se hizo:** bajar `secure` para que la prueba pase. Debilitar una
+defensa real por comodidad local es el canje equivocado. Se corrigió el
+comentario para que diga lo medido y se saltean **solo** las dos pruebas que
+necesitan sesión, **solo** en WebKit, con el motivo escrito en el `skip`.
+
+**La segunda es el bug de la agenda**, que ya tiene su entrada arriba: el aviso
+"No hay clases cargadas" no se podía mostrar nunca.
+
+### Un caso nuevo del patrón, y el peor escrito al revés
+
+`page.evaluate(() => 1)` **funciona con `javaScriptEnabled: false`**, porque
+Playwright lo ejecuta por el protocolo de depuración y no por la página. Era el
+detector obvio de "¿está apagado de verdad?" y mide otra cosa: es el tipo (a) de
+la clasificación.
+
+**Y lo importante es la otra dirección.** Si el detector hubiera sido "si
+`evaluate` funciona, JavaScript está prendido", habría afirmado algo falso y el
+paso siguiente habría sido perseguir una configuración que estaba bien. Se cazó
+antes de que engañara a nadie porque la aserción estaba escrita como "esto tiene
+que fallar", y falló al revés.
+
+El detector que sirve es de comportamiento y usa la única pieza de cliente del
+proyecto: con JavaScript, escribir en el campo mueve el `<meter>`; sin
+JavaScript queda quieto. **Contraprobado**: se le prendió JavaScript al proyecto
+y el medidor pasó de 0 a 4. Que haya un solo componente de cliente lo convierte
+en un detector exacto — una propiedad útil que sale de una decisión de
+arquitectura tomada por otro motivo.
+
+### La excepción a "un dato, una fuente", y por qué es una excepción
+
+Las cinco pantallas del panel están **escritas a mano** en `admin.spec.js`, no
+leídas de la navegación. Eso duplica un dato, que es lo que el proyecto prohíbe
+desde septiembre.
+
+**El motivo: una prueba que se actualiza sola no puede detectar una regresión.**
+Si la lista se leyera del código, agregar una pantalla sin protegerla la
+agregaría también a la prueba, la prueba la recorrería y pasaría. Escrita a
+mano, queda corta y avisa.
+
+**La regla de la fuente única aplica al código, no a lo que el código afirma
+sobre sí mismo.** Una prueba es una afirmación independiente: si sale del mismo
+lugar que lo que verifica, no verifica nada. Es el tipo (c) del patrón —una
+comprobación que no puede fallar— aplicado a la estructura de la prueba y no a
+su contenido.
+
+### Dos clases de contraprueba, que no prueban lo mismo
+
+Vale distinguirlas porque en esta ronda se usaron las dos y se parecen:
+
+- **La que prueba que el arreglo sirve.** Al arnés de limpieza se le invirtió el
+  orden de los `delete` y cortó con `reservas_credito_id_fkey`. Antes del caso
+  nuevo, pasaba. Eso prueba que **la prueba** detecta el fallo.
+- **La que prueba que una afirmación es cierta.** En `extender-agenda.sql` se
+  editó un precio a 999, se corrió el extensor y siguió en 999; se corrió el
+  seed y lo pisó a 18000. **Eso no prueba que el archivo funcione: prueba que la
+  afirmación de su encabezado es cierta.** Es la diferencia entre documentar y
+  demostrar.
+
+### Una prueba inestable, dicha y no explicada
+
+La de reservar y cancelar agotó los 30 segundos en una corrida de catorce, sin
+error de aserción, y no se reprodujo en tres corridas posteriores. Lleva
+`test.slow()` con el motivo y la aclaración de que no es un reintento
+disfrazado: `retries: 0` sigue puesto.
+
+**Queda dicha y no explicada**, que es más honesto que taparla con un reintento.
+Si vuelve, se investiga con la traza, que la configuración ya graba.
+
+**Predicción:**
+
+**Aprendizaje:** las pruebas de navegador no encontraron bugs de lógica —esos
+los habían encontrado los arneses de la base— sino **afirmaciones falsas sobre
+el entorno**: qué hace un navegador con una cookie, qué significa que una
+función de Playwright funcione. Son cosas que no se deducen del código porque no
+están en el código, y por eso correr tres motores pagó donde correr tres veces
+el mismo no habría cambiado nada.
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título

@@ -440,6 +440,11 @@ DELETE /api/v1/clases/{id}  ->  405 Method Not Allowed
   entregado y el pago se perdería en silencio. Por eso, para saber si una ruta
   está tomada hay que mirar `x-matched-path`, no el código de estado.
 
+  **Tener una página de 404 propia no lo arregla**, y conviene decirlo porque
+  invita a pensar que sí. `app/not-found.jsx` cambia el *cuerpo* de la
+  respuesta, no el código: el `GET` ya devolvía 404 antes y lo sigue
+  devolviendo, y el `POST` sigue devolviendo 200 con esa misma página adentro.
+
 - **El 405 no lleva `Allow`.** La RFC pide que un 405 diga qué métodos sí se
   aceptan. Lo genera Next, no el proyecto, y no la incluye. Se podría agregar
   exportando un `OPTIONS` por ruta; no se hizo porque serían once handlers
@@ -607,6 +612,56 @@ leer la intención ni invocar `otorgar_creditos()`.
 
 ### 14.3 La firma
 
+#### Mercado Pago tiene una clave secreta distinta por modo
+
+Esto costó un pago perdido averiguarlo, así que va primero.
+
+El panel tiene **dos** claves de firma: una en *Modo productivo* y otra en
+*Modo de prueba*. **Los avisos de pagos hechos con cuentas de prueba llegan
+firmados con la de Modo de prueba**, y eso no es deducible de nada de lo que se
+ve desde el código:
+
+- el pago dice **`live_mode: true`**, no `false`
+- la URL estaba cargada en el campo de **modo productivo**, y era la correcta
+- el evento tildado era **Pagos (legacy)**, que es el que corresponde
+- la cuenta vendedora es un usuario de prueba, pero eso solo se ve consultando
+  `GET /users/me` y mirando `tags`
+
+**El síntoma fue un 401 en cada aviso**, o sea exactamente lo que devuelve este
+endpoint cuando una firma no coincide. Parecía un error nuestro: la plantilla
+del manifest mal armada, el `data.id` leído del lugar equivocado, la ventana de
+antigüedad. Nada de eso.
+
+**La única forma de verlo fue el historial de notificaciones del panel de
+Mercado Pago**, donde cada aviso trae un filtro de ambiente que decía
+**"Prueba"**. Ni los registros del servidor ni la API lo dicen: del lado
+nuestro un aviso firmado con la otra clave es indistinguible de uno
+falsificado, y tiene que serlo.
+
+**Por eso el handler acepta las dos.** `MP_WEBHOOK_SECRET` para modo
+productivo y `MP_WEBHOOK_SECRET_PRUEBA` para modo de prueba; se prueba con cada
+una configurada y basta que una valide. No debilita nada: las dos son secretos
+nuestros, y un aviso falsificado tiene que coincidir con una de las dos igual.
+Lo que se gana es que el mismo deploy sirva para probar y para cobrar, sin
+cambiar una variable entre una cosa y la otra.
+
+Y el registro dice **con qué modo validó**, que es el dato que faltaba cuando
+los avisos daban 401:
+
+```
+[webhook mp] firma válida (modo prueba)
+```
+
+Cuando **solo hay una clave configurada** y la firma no valida, el registro lo
+agrega explícitamente, para no volver a buscar el problema donde no está:
+
+```
+[webhook mp] OJO: solo está configurada la clave de modo productivo. Si el
+aviso viene del otro modo, el 401 es de configuración y no de seguridad.
+```
+
+#### El validador
+
 **Se usa el validador oficial del SDK, no una copia hecha a mano.** El motivo
 es concreto: la documentación de Mercado Pago **ya no publica la plantilla del
 manifest**, remite al validador del SDK. Escribir el HMAC copiándolo de un blog
@@ -749,6 +804,24 @@ MP_WEBHOOK_SECRET=cualquier-cosa node docs/ejemplos/probar-webhook.mjs
 El caso de `x-request-id` ausente es el que **prueba la regla de omitir pares**:
 el manifest queda `id:<...>;ts:<...>;` y si se armara mal daría 401 en vez de
 llegar a consultar el pago.
+
+**Y las dos claves, en las cuatro combinaciones:**
+
+```
+npm run build && zsh docs/ejemplos/probar-webhook-dos-claves.sh
+```
+
+| claves cargadas | firmado con la productiva | con la de prueba | con una tercera |
+|---|---|---|---|
+| solo la productiva | 200 | **401** ← el síntoma que costó el pago | — |
+| **las dos** | 200 | 200 | 401 |
+| solo la de prueba | 401 | 200 | — |
+| ninguna | 500 | 500 | 500 |
+
+La primera fila es el estado que hizo perder un aviso, reproducido a propósito:
+sin esa fila, el arreglo no se distingue de un cambio cosmético. Y la última
+comprueba que sin ninguna clave la respuesta sea 500 y no 200, que es lo que
+hace que Mercado Pago reintente en vez de dar el pago por procesado.
 
 **Y el camino de un pago aprobado, contra producción.** Eso no se puede probar
 local: hace falta un `payment_id` real del sandbox, que sale de pagar una vez

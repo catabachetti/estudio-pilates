@@ -20,11 +20,28 @@ import { createHmac } from 'node:crypto'
 
 const URL_BASE = process.env.URL_BASE ?? 'http://localhost:3001'
 const RUTA = '/api/webhooks/mercadopago'
-const SECRETO = process.env.MP_WEBHOOK_SECRET
+// CON QUE CLAVE FIRMAR. Mercado Pago tiene una clave distinta por modo, y los
+// avisos de pagos de cuentas de prueba vienen firmados con la de "Modo de
+// prueba". Este script puede firmar con cualquiera de las dos para probar que
+// el handler acepte las dos.
+//
+//   FIRMAR_CON=productivo   usa MP_WEBHOOK_SECRET        (por omision)
+//   FIRMAR_CON=prueba       usa MP_WEBHOOK_SECRET_PRUEBA
+//   FIRMAR_CON=otra         usa una clave que el servidor no tiene
+const FIRMAR_CON = process.env.FIRMAR_CON ?? 'productivo'
+const CLAVES = {
+  productivo: process.env.MP_WEBHOOK_SECRET,
+  prueba: process.env.MP_WEBHOOK_SECRET_PRUEBA,
+  otra: 'una-clave-que-el-servidor-no-conoce',
+}
+const SECRETO = CLAVES[FIRMAR_CON]
 const PAGO = process.env.PAGO ?? '1234567890'
 
 if (!SECRETO) {
-  console.error('Falta MP_WEBHOOK_SECRET. Poné cualquier valor, pero el mismo que el servidor.')
+  console.error(
+    `Falta la clave para FIRMAR_CON=${FIRMAR_CON}. ` +
+      'Pone cualquier valor, pero el mismo que el servidor.'
+  )
   process.exit(1)
 }
 
@@ -92,6 +109,7 @@ async function avisar({
 }
 
 console.log(`=== contra ${URL_BASE}${RUTA} ===`)
+console.log(`    firmando con la clave de modo: ${FIRMAR_CON}`)
 console.log()
 console.log('--- la firma: lo que tiene que rechazar')
 const fallos = []

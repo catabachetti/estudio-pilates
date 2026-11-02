@@ -62,6 +62,32 @@ echo "  compras con ese pago: $(q -tAc "select count(*) from compras where mp_pa
 echo "  creditos que cuelgan: $(q -tAc "select count(*) from creditos k join compras m on m.id=k.compra_id where m.mp_payment_id='186232108573';")"
 echo "  intenciones:          $(q -tAc 'select count(*) from intenciones_de_pago;')"
 
+echo "=== el caso que el arnes NO cubria: cuenta de prueba reservando en clase REAL ==="
+# ESTE ES EL QUE FALTABA, y por eso el error de orden aparecio recien contra
+# datos de verdad. Los tres casos originales ponian las reservas de las cuentas
+# de prueba en clases de 2027, que el script borra primero; ninguno las ponia en
+# una clase que el script NO toca.
+#
+# La diferencia importa porque `reservas.credito_id` referencia `creditos` sin
+# accion de borrado: si el credito se borra antes que la reserva, Postgres corta
+# con 23503. Es exactamente lo que paso.
+q -q -c "insert into compras (user_id, paquete_id, monto, estado, mp_payment_id)
+         select (select id from auth.users where email like '%+%'),
+                (select id from paquetes order by orden limit 1), 19000, 'aprobada', 'prueba-cuenta-alias';"
+q -q -c "insert into creditos (user_id, compra_id, vence_el)
+         select m.user_id, m.id, current_date + 30 from compras m
+         where m.mp_payment_id = 'prueba-cuenta-alias';"
+q -q -c "insert into reservas (user_id, clase_id, credito_id)
+         select (select id from auth.users where email like '%+%'),
+                (select id from clases where fecha < date '2027-01-01' order by fecha desc limit 1),
+                (select k.id from creditos k join compras m on m.id = k.compra_id
+                 where m.mp_payment_id = 'prueba-cuenta-alias' limit 1);"
+echo "  reserva de cuenta de prueba en clase real: $(q -tAc "
+  select count(*) from reservas r
+  join auth.users u on u.id = r.user_id
+  join clases c on c.id = r.clase_id
+  where u.email like '%+%' and c.fecha < date '2027-01-01' and r.credito_id is not null;")"
+
 echo "=== 1. el freno: una reserva de cuenta real en una clase de 2027 ==="
 q -q -c "insert into reservas (user_id, clase_id)
          select (select id from auth.users where email = 'estudio@ejemplo.com'),
@@ -113,7 +139,9 @@ for par in "select count(*) from clases where fecha >= date '2027-01-01'|clases 
            "select count(*) from compras where user_id in (select id from auth.users where email like '%+%@%')|compras de prueba" \
            "select count(*) from compras where mp_payment_id in ('186232108573','prueba-api-fecha-1')|pagos de prueba de MP" \
            "select count(*) from creditos k join compras m on m.id=k.compra_id where m.mp_payment_id='186232108573'|creditos de ese pago" \
-           "select count(*) from intenciones_de_pago|intenciones de pago"; do
+           "select count(*) from intenciones_de_pago|intenciones de pago" \
+           "select count(*) from reservas r join auth.users u on u.id=r.user_id where u.email like '%+%'|reservas de cuentas de prueba" \
+           "select count(*) from compras where mp_payment_id='prueba-cuenta-alias'|la compra de la cuenta alias"; do
   consulta="${par%%|*}"; nombre="${par##*|}"
   n=$(q -tAc "$consulta")
   printf '  %-22s %s' "$nombre" "$n"

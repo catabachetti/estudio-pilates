@@ -86,16 +86,29 @@ where c.id = r.clase_id
 delete from clases
 where fecha >= date '2027-01-01';
 
--- Los creditos y las compras de las cuentas de prueba. Los creditos antes, que
--- son los que referencian la compra.
+-- EL ORDEN DE ESTOS TRES IMPORTA, Y LA PRIMERA VERSION LO TENIA MAL.
+--
+-- Borraba los creditos antes que las reservas, con el argumento de que los
+-- creditos referencian la compra. Eso es cierto y es la razon por la que los
+-- creditos van antes que `compras`, pero se olvidaba de la otra punta:
+-- `reservas.credito_id` referencia `creditos` y NO TIENE accion de borrado.
+--
+-- Corriendolo contra datos de verdad fallo con 23503: una cuenta de prueba
+-- tenia una reserva en una clase REAL —no de 2027, asi que los delete de
+-- arriba no se la llevaron— usando uno de esos creditos. El arnes no lo
+-- detectaba porque ninguno de sus tres casos ponia a una cuenta de prueba a
+-- reservar en una clase que el script no borra.
+--
+-- Asi que primero las reservas, que son las que apuntan a los creditos.
+delete from reservas
+where user_id in (select id from auth.users where email like '%+%@%');
+
+-- Despues los creditos, que apuntan a la compra.
 delete from creditos
 where user_id in (select id from auth.users where email like '%+%@%');
 
+-- Y por ultimo las compras.
 delete from compras
-where user_id in (select id from auth.users where email like '%+%@%');
-
--- Las reservas que esas cuentas tengan en clases reales, si quedo alguna.
-delete from reservas
 where user_id in (select id from auth.users where email like '%+%@%');
 
 -- Las cuentas en si NO se borran desde aca. Van por Authentication -> Users en

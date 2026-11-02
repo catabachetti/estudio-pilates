@@ -121,6 +121,33 @@ Hay dos arneses más, con el mismo mecanismo:
 | `probar-reservas.sh` | las seis situaciones de `reservar_clase()` y `cancelar_reserva()`, incluida la carrera por el último lugar con dos transacciones reales |
 | `probar-bloqueo.sh` | el bloqueo progresivo de la 012, con el techo en el exponente |
 | `probar-limpieza.sh` | que `limpiar-datos-de-prueba.sql` frene cuando hay una reserva de una cuenta real, y que sin eso se lleve lo de prueba y nada más |
+| `probar-agenda-agotada.sh` | que el filtro `fecha >= current_date` sea lo único que distingue una agenda agotada de una cargada, con la contraprueba de qué devolvía antes |
+| `probar-extender-agenda.sh` | que `extender-agenda.sql` sea idempotente, no toque el catálogo y no se lleve las reservas; y **que la afirmación de su encabezado sea cierta**, comprobando que el seed sí pisa un precio editado |
+
+## Extender la agenda
+
+`extender-agenda.sql`, desde el editor SQL de Supabase. **Es la forma de
+agregar semanas a `/reservar` sin correr el seed.**
+
+La diferencia con `seed.sql` es la que importa y es el motivo por el que el
+archivo existe: el seed es la fuente de verdad del **catálogo** y entra con
+`on conflict ... do update`, así que **revierte cualquier precio o texto
+editado desde `/admin/paquetes`**, sin avisar. `extender-agenda.sql` toca una
+sola tabla, `clases`, y solo agrega.
+
+Se corre en tres pasos: la sección 1 dice hasta cuándo llega la agenda hoy, la
+2 agrega las semanas que falten, y la 3 confirma. **Se puede correr cuantas
+veces haga falta**: el `on conflict (fecha, hora) do nothing` deja las clases
+existentes intactas, con sus reservas, y agrega solo los días que faltaban.
+
+La grilla de horarios está duplicada entre este archivo y el seed. Es el único
+dato duplicado entre los dos y se acepta a propósito: separarlo en una función
+obligaría a una migración para algo que se edita una vez por año. Si la grilla
+del estudio cambia, hay que cambiarla en los dos.
+
+La alternativa es cargar las clases de a una desde `/admin/clases`, que
+también sirve y es mejor cuando la grilla de esa semana es distinta de la
+habitual.
 
 ## Limpiar los datos de prueba
 

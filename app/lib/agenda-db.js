@@ -1,5 +1,5 @@
-import { clienteSupabase } from './supabase'
-import { aClave, desdeClave, hoy, lunesDe } from '../datos/agenda'
+import { clienteSupabase } from './supabase.js'
+import { aClave, desdeClave, hoy, lunesDe } from '../datos/agenda.js'
 
 // Toda la agenda de /reservar sale de la tabla `clases`. Nada de grillas
 // escritas en el código: si la base tiene clases hasta el 3 de diciembre, la
@@ -12,8 +12,17 @@ import { aClave, desdeClave, hoy, lunesDe } from '../datos/agenda'
 //
 // Si cualquiera falla, se devuelve el error y la página no muestra nada: en esta
 // pantalla los números son afirmaciones sobre lugares reales.
-export async function agendaDeLaSemana(diaPedido) {
-  const supabase = clienteSupabase()
+// EL CLIENTE ENTRA POR PARAMETRO, con el real por omisión.
+//
+// No es un parche para poder probar: es la convención que ya usa el resto del
+// proyecto. `resumenDeCreditos(supabase, userId)` en app/lib/creditos.js y
+// `cupoQueDejaGenteAfuera(supabase, ...)` en app/lib/clases.js reciben el
+// cliente; esta función era la excepción que se lo creaba adentro, y por eso
+// era la única que no se podía probar sin levantar Supabase.
+//
+// Quien la llama desde /reservar no cambia: el valor por omisión es el mismo
+// cliente que se creaba antes.
+export async function agendaDeLaSemana(diaPedido, supabase = clienteSupabase()) {
   const claveHoy = aClave(hoy())
 
   const { data: ultima, error: errorUltima } = await supabase
@@ -23,6 +32,16 @@ export async function agendaDeLaSemana(diaPedido) {
     // agenda, y no tiene que correr el final del calendario ni aparecer en la
     // tira. La función disponibilidad_del_dia ya filtra igual desde la 009.
     .eq('estado', 'programada')
+    // Y SOLO DE HOY EN ADELANTE. Sin este filtro, `ultimaFecha` tomaba la
+    // última clase de la tabla aunque ya hubiera pasado, así que nunca era
+    // null: el día que la agenda se agotara, `sinAgenda` seguiría en false y
+    // el bloque "No hay clases cargadas" —que existe exactamente para ese
+    // caso— no se mostraría nunca. Se vería la agenda normal con la tira de
+    // días vacía y sin explicación.
+    //
+    // Las clases pasadas no se borran, así que la condición "la tabla quedó
+    // sin ninguna clase" no se cumple nunca sola.
+    .gte('fecha', claveHoy)
     .order('fecha', { ascending: false })
     .limit(1)
     .maybeSingle()

@@ -45,10 +45,33 @@ const firmaInvalida = () =>
 //   manifest = "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
 // con los pares ausentes omitidos, HMAC-SHA256 en hex y comparación en tiempo
 // constante.
-export function exigirFirma(request) {
-  const secreto = process.env.MP_WEBHOOK_SECRET
+// MERCADO PAGO TIENE UNA CLAVE SECRETA DISTINTA POR MODO, y esto costó un
+// pago perdido averiguarlo.
+//
+// El panel tiene dos: "Modo productivo" y "Modo de prueba". **Los avisos de
+// pagos hechos con cuentas de prueba llegan firmados con la de Modo de
+// prueba**, aunque el pago diga `live_mode: true` y aunque la URL esté
+// cargada en el campo de modo productivo.
+//
+// Con solo la clave productiva cargada, el síntoma fue un 401 en cada aviso
+// —que parece un error de firma nuestro— y el crédito no se acreditaba. Ver
+// docs/api.md §14.3 y la bitácora del 2 de noviembre.
+//
+// Por eso se aceptan las dos. No debilita nada: las dos son secretos
+// nuestros, y un aviso falsificado tiene que coincidir con una de las dos
+// igual. Lo que se gana es que el mismo deploy sirva para probar y para
+// cobrar de verdad, sin cambiar una variable entre una cosa y la otra.
+function secretosConfigurados() {
+  return [
+    { modo: 'productivo', valor: process.env.MP_WEBHOOK_SECRET },
+    { modo: 'prueba', valor: process.env.MP_WEBHOOK_SECRET_PRUEBA },
+  ].filter((s) => s.valor)
+}
 
-  // SIN SECRETO SE DEVUELVE 500, NO 200 NI 401.
+export function exigirFirma(request) {
+  const secretos = secretosConfigurados()
+
+  // SIN NINGÚN SECRETO SE DEVUELVE 500, NO 200 NI 401.
   //
   // Es la decisión que más importa de este archivo. Un 200 daría por aceptado
   // un aviso que nadie verificó y Mercado Pago dejaría de reintentar: un pago
@@ -56,14 +79,16 @@ export function exigirFirma(request) {
   // cuando el que está mal es nuestro servidor. Con 500, Mercado Pago
   // reintenta durante horas, que es exactamente el tiempo que hace falta para
   // darse cuenta y cargar la variable.
-  if (!secreto) {
+  if (secretos.length === 0) {
     console.error(
-      '[webhook mp] FALTA MP_WEBHOOK_SECRET. No se puede verificar el aviso. ' +
-        'Se devuelve 500 a propósito para que Mercado Pago reintente y el ' +
-        'pago no se pierda. La clave sale del panel: Tus Integraciones -> la ' +
-        'aplicación -> Webhooks -> Configurar notificaciones.'
+      '[webhook mp] NO HAY NINGUNA CLAVE DE FIRMA configurada ' +
+        '(MP_WEBHOOK_SECRET ni MP_WEBHOOK_SECRET_PRUEBA). No se puede ' +
+        'verificar el aviso. Se devuelve 500 a propósito para que Mercado ' +
+        'Pago reintente y el pago no se pierda. Las claves salen del panel: ' +
+        'Tus Integraciones -> la aplicación -> Webhooks -> Configurar ' +
+        'notificaciones, y hay UNA POR MODO.'
     )
-    throw new Error('MP_WEBHOOK_SECRET no configurado')
+    throw new Error('Ninguna clave de firma de Mercado Pago configurada')
   }
 
   const { searchParams } = new URL(request.url)
@@ -74,27 +99,52 @@ export function exigirFirma(request) {
   // el manifest y una firma legítima dejaría de coincidir.
   const dataId = searchParams.get('data.id')
 
-  try {
-    WebhookSignatureValidator.validate({
-      xSignature: request.headers.get('x-signature'),
-      xRequestId: request.headers.get('x-request-id'),
-      dataId,
-      secret: secreto,
-      toleranceSeconds: TOLERANCIA_SEGUNDOS,
-    })
-  } catch (e) {
-    if (e instanceof InvalidWebhookSignatureError) {
-      // El motivo va al registro junto con el x-request-id, que es con lo que
-      // se encuentra la notificación en el panel de Mercado Pago.
-      console.error(
-        `[webhook mp] firma rechazada: ${e.reason} (x-request-id: ${e.requestId ?? 'sin'})`
-      )
-      throw firmaInvalida()
+  // Se prueba con cada clave configurada y basta que una valide. El orden no
+  // importa para la seguridad; se deja productivo primero porque es el caso
+  // que va a ser mayoría cuando el sitio cobre de verdad.
+  let ultimoFallo = null
+
+  for (const { modo, valor } of secretos) {
+    try {
+      WebhookSignatureValidator.validate({
+        xSignature: request.headers.get('x-signature'),
+        xRequestId: request.headers.get('x-request-id'),
+        dataId,
+        secret: valor,
+        toleranceSeconds: TOLERANCIA_SEGUNDOS,
+      })
+      // Se registra con qué modo validó. Es el dato que faltaba cuando los
+      // avisos daban 401: saber de qué ambiente venían.
+      console.log(`[webhook mp] firma válida (modo ${modo})`)
+      return { dataId, modo }
+    } catch (e) {
+      if (!(e instanceof InvalidWebhookSignatureError)) throw e
+      ultimoFallo = e
     }
-    throw e
   }
 
-  return { dataId }
+  // Ninguna validó. El motivo va al registro junto con el x-request-id, que es
+  // con lo que se encuentra la notificación en el panel de Mercado Pago.
+  console.error(
+    `[webhook mp] firma rechazada por las ${secretos.length} clave(s) ` +
+      `configurada(s): ${ultimoFallo?.reason} ` +
+      `(x-request-id: ${ultimoFallo?.requestId ?? 'sin'})`
+  )
+
+  // SI SOLO HAY UNA CLAVE, ESTE 401 PUEDE SER UN PROBLEMA DE CONFIGURACIÓN Y
+  // NO UN ATAQUE. Es exactamente lo que pasó la primera vez: faltaba la clave
+  // de modo de prueba y el 401 parecía un error de firma. Se dice en el
+  // registro para no volver a buscarlo en el lugar equivocado.
+  if (secretos.length === 1) {
+    console.error(
+      `[webhook mp] OJO: solo está configurada la clave de modo ` +
+        `${secretos[0].modo}. Si el aviso viene del otro modo, el 401 es de ` +
+        `configuración y no de seguridad. El historial del panel de Mercado ` +
+        `Pago muestra el ambiente de cada notificación.`
+    )
+  }
+
+  throw firmaInvalida()
 }
 
 // EL CUERPO NO ESTÁ FIRMADO, así que no se le cree nada más que de qué pago
