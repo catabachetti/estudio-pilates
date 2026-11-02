@@ -17,7 +17,19 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 // intento.
 
 export default defineConfig([
-  globalIgnores(['.next', 'node_modules', 'public']),
+  // Se ignoran tambien los artefactos de Playwright. `playwright-report/` trae
+  // el visor de trazas empaquetado —CodeMirror y compania— y lint sobre eso
+  // informaba miles de errores de codigo que no es nuestro, que es exactamente
+  // el estado del que se salio cuando se arreglo esta config.
+  globalIgnores([
+    '.next',
+    'node_modules',
+    'public',
+    'test-results',
+    'playwright-report',
+    'blob-report',
+    'playwright/.cache',
+  ]),
   {
     files: ['**/*.{js,jsx}'],
     extends: [js.configs.recommended, reactHooks.configs.flat.recommended],

@@ -383,6 +383,48 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   podría agregar exportando un `OPTIONS` por ruta; serían once handlers nuevos
   cuyo único efecto es una cabecera.
 
+- **La agenda se agota el 5 de diciembre de 2026 y no se extiende sola.** Las
+  clases las generó el seed una vez, ocho semanas, y nada las renueva. No
+  molesta para la entrega —la fecha es posterior— pero es el tipo de cosa que
+  no se ve hasta que alguien entra a reservar y no hay nada.
+
+  **Lo que va a mostrar `/reservar` es peor que un aviso**, y vale leerlo
+  entero antes de arreglarlo. `agendaDeLaSemana()` calcula `ultimaFecha` con la
+  última clase de la tabla **sin mirar si ya pasó**:
+
+  ```js
+  .eq('estado', 'programada').order('fecha', { ascending: false }).limit(1)
+  ```
+
+  Así que después del 5 de diciembre `ultimaFecha` sigue siendo `2026-12-05`,
+  o sea **no es null**, o sea `sinAgenda` es `false`. Y `sinAgenda` es lo único
+  que enciende el bloque `AgendaNoDisponible`, el que dice "No hay clases
+  cargadas". **Ese aviso, que existe exactamente para este caso, no se va a
+  disparar nunca**: solo lo haría si la tabla quedara sin ninguna clase, y las
+  pasadas no se borran. Lo que se va a ver es la agenda normal con la tira de
+  días vacía y la tabla sin turnos.
+
+  Esto está **leído del código, no medido**: reproducirlo hoy requiere mover el
+  reloj o dejar todas las clases en el pasado, porque el día pedido se acota a
+  `<= ultimaFecha` y no se puede navegar a una semana vacía.
+
+  **Las dos salidas, y ninguna está hecha:**
+
+  1. **Cargarlas desde `/admin/clases`**, que ya existe y ya crea clases de a
+     una. No hace falta código nuevo; hace falta que alguien se acuerde. Es la
+     salida razonable si el estudio arma la grilla semana a semana, que es como
+     trabaja.
+  2. **Una tarea programada** que agregue una semana por semana. Es más
+     trabajo: hay que decidir qué grilla replica, qué pasa con los feriados y
+     qué hace si ya existen las clases de esa semana —el `unique (fecha, hora)`
+     la va a rechazar, que es lo correcto pero hay que manejarlo—. Y hay que
+     decidir dónde corre.
+
+  **Si se elige la 1, conviene al menos que el aviso funcione**, porque hoy no
+  puede: alcanzaría con comparar `ultimaFecha` contra hoy en vez de contra null.
+  Es un arreglo chico y está sin hacer a propósito, para no mezclarlo con la
+  decisión de arriba.
+
 - La validación del cupo contra las reservas ya tomadas se hace en la
   aplicación: se lee la cuenta y después se escribe. Entre las dos cosas
   alguien podría reservar y el cupo quedaría uno por debajo. Con seis lugares y

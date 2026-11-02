@@ -924,6 +924,86 @@ me ocurrió que existiera.
 
 ---
 
+## 2026-11-02 — Dos hallazgos de los datos de prueba
+
+**Prompt:** módulo 13. Al armar las pruebas E2E apareció primero uno y después,
+corriendo la limpieza, el otro.
+
+### Los datos de prueba degradaron el sitio sin que ninguna línea estuviera mal
+
+`/reservar` dejaba avanzar semana por semana por unas treinta y cinco semanas
+**vacías**. El final real de la agenda era el 2026-12-05 y se podía llegar al
+2026-12-14 y seguir.
+
+La causa no está en el código. `agendaDeLaSemana()` decide hasta dónde se puede
+avanzar con la fecha de la última clase programada de la tabla:
+
+```js
+siguiente: aClave(lunesSiguiente) <= ultimaFecha ? aClave(lunesSiguiente) : null
+```
+
+Y hace **exactamente** lo que dice su propio comentario: *"hacia adelante, hasta
+donde haya clases cargadas: el límite ya no es una constante del código"*. Eso
+era una mejora deliberada sobre una versión anterior que tenía el límite escrito
+a mano.
+
+Lo que estaba mal eran **los datos**: ocho clases de prueba en 2027, creadas
+probando los endpoints de administración del módulo 11, con fechas elegidas
+justamente para que se distinguieran de las reales. La última era el 2027-07-07.
+
+**Lo que esto enseña**, y es lo que lo hace valer una entrada: una revisión de
+código no lo habría encontrado nunca, porque no hay código que revisar. Y una
+prueba sobre base vacía tampoco: el síntoma **necesita** datos sembrados para
+existir. Apareció porque la prueba E2E iba a crear clases en 2027 y se midió qué
+rango ofrecía la agenda antes de escribirla.
+
+**Efecto secundario sobre las pruebas:** la regla de datos que había escrito
+—"lo que las pruebas creen, lo crean en 2027", para que la limpieza las
+levante— reintroducía el problema **en cada corrida**, y peor: si una corrida se
+corta antes del cleanup, queda. Cambiada: las clases de prueba se crean en una
+fecha que **ya tiene clases**, a una hora que el estudio no usa, así
+`ultimaFecha` no se mueve. Y la prueba de reservar usa una clase existente en
+vez de fabricar una.
+
+### El script de limpieza tenía el mismo error de orden que su propio freno prevenía
+
+Corriendo la limpieza contra datos de verdad, falló con **23503**: borraba los
+créditos de las cuentas de prueba **antes** que las reservas que los
+referencian.
+
+Lo irónico es que el script ya tenía un freno para exactamente este problema,
+pero en otra sección. La 2.5, la de los pagos de Mercado Pago, lo explica:
+
+> `creditos.compra_id` es `on delete cascade`, así que borrar la compra se lleva
+> sus créditos sola. Pero `reservas.credito_id` **no** tiene acción de borrado.
+
+Y el comentario de la sección 2 decía *"los créditos antes, que son los que
+referencian la compra"*. Eso es **cierto** —y es la razón por la que los
+créditos van antes que `compras`— pero mira una sola de las dos puntas:
+`creditos → compras` hacia abajo, y se olvida de `reservas → creditos` hacia
+arriba. Un argumento correcto que justifica un orden incorrecto es peor que
+ningún argumento, porque invita a no revisarlo.
+
+**Por qué el arnés no lo vio.** `probar-limpieza.sh` tenía tres casos y en los
+tres las reservas de las cuentas de prueba estaban en clases de 2027, que el
+script borra **primero**. Ninguno ponía a una cuenta de prueba a reservar en una
+clase que el script **no** toca. En los datos reales sí había una.
+
+**Corregido y contraprobado.** Se agregó ese cuarto caso, y después se invirtió
+el orden a propósito para comprobar que el arnés lo ve: ahora corta con
+`reservas_credito_id_fkey`, el mismo 23503. Antes del caso nuevo, pasaba.
+
+**Predicción:**
+
+**Aprendizaje:** un arnés que prueba un script de borrado tiene que incluir una
+fila que el script **no** borra. Los tres casos originales eran variaciones de
+"todo lo que hay es de prueba", y ese es el escenario fácil: el difícil es el
+mixto, que es el único que existe en la realidad. Y el patrón general, que ya
+está en la sección de depuración: el argumento escrito al lado de una línea
+puede ser correcto y aun así no alcanzar.
+
+---
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título
