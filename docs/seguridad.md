@@ -664,7 +664,7 @@ que lista cosas ya resueltas deja de ser creíble para las que sí lo están, as
 que lo resuelto se mueve abajo con la fecha en vez de borrarse: el motivo por
 el que era un riesgo sigue siendo información útil.
 
-### Pendiente, verificado el 2 de noviembre de 2026
+### Pendiente, verificado el 3 de noviembre de 2026
 
 **Activar "Confirm email".** Cierra la fuga de `user_already_exists` de §2.1 y
 hace falta igual para un sitio real. Hoy está apagado a propósito, para no
@@ -681,8 +681,8 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/settings" \
 "mailer_autoconfirm": true     <- Confirm email APAGADO
 ```
 
-Cuando esté activado, ese valor pasa a `false`. **Medido el 2 de noviembre de
-2026: sigue en `true`.**
+Cuando esté activado, ese valor pasa a `false`. **Medido de nuevo el 3 de
+noviembre de 2026: sigue en `true`.**
 
 **Limpiar los datos de prueba.** `supabase/limpiar-datos-de-prueba.sql`, que no
 se corrió todavía a propósito: se deja para cuando termine de probarse todo.
