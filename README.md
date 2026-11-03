@@ -1,5 +1,7 @@
 # Estudio Pilates
 
+[![ci](https://github.com/catabachetti/estudio-pilates/actions/workflows/ci.yml/badge.svg)](https://github.com/catabachetti/estudio-pilates/actions/workflows/ci.yml)
+
 Proyecto final de Programación Web (71.38) — ITBA.
 Aplicación web para la gestión de reservas de clases de pilates reformer.
 
@@ -8,9 +10,13 @@ Aplicación web para la gestión de reservas de clases de pilates reformer.
 ## Descripción
 
 Los usuarios compran paquetes de clases, que se acreditan en su cuenta,
-y los usan para reservar turnos de la grilla semanal. Si una clase está
-completa, pueden anotarse en lista de espera y entran automáticamente
-cuando alguien cancela.
+y los usan para reservar turnos de la grilla semanal.
+
+Si una clase está completa, la grilla ofrece **anotarse en la lista de espera
+por WhatsApp**, y el estudio avisa cuando se libera un lugar. No hay promoción
+automática: la tabla `lista_espera` existe con sus políticas pero ninguna
+pantalla le escribe todavía. Esta descripción decía lo contrario hasta el
+módulo 14.
 
 ## Stack
 
@@ -58,27 +64,46 @@ lo que mejora el SEO y la velocidad de la primera carga.
 
 ## Estado del proyecto
 
-- [x] Repositorio y control de versiones
-- [x] E1 — CI/CD y preview por PR
-- [ ] E2 — Landing semántica y responsive
-- [ ] E3 — Formularios dinámicos con fetch y validación
-- [ ] E4 — Catálogo navegable y API interna
-- [ ] E5 — CRUD en Supabase y panel de administración
-- [ ] E6 — Checkout y webhook de Mercado Pago
+| | Entregable | Dónde está documentado |
+|---|---|---|
+| [x] | Repositorio y control de versiones | |
+| [x] | E1 — CI/CD y preview por PR | [docs/despliegue.md](docs/despliegue.md) |
+| [x] | E2 — Landing semántica y responsive | |
+| [x] | E3 — Formularios con validación | [docs/seguridad.md](docs/seguridad.md) |
+| [x] | E4 — Catálogo navegable y API interna | [docs/api.md](docs/api.md) |
+| [x] | E5 — CRUD en Supabase y panel de administración | [docs/seguridad.md](docs/seguridad.md) |
+| [x] | E6 — Checkout y webhook de Mercado Pago | [docs/api.md](docs/api.md) |
+
+Una aclaración sobre E3: los formularios **no** usan `fetch`. Usan Server
+Actions, así que el sitio funciona con JavaScript desactivado, y eso está
+probado en los tres motores de navegador — ver
+[docs/pruebas.md](docs/pruebas.md). La única excepción de `'use client'` del
+proyecto es el medidor de fortaleza de contraseña, que es un agregado y no una
+dependencia.
 
 ## Desarrollo local
 
 ```bash
 npm install
-npm run dev
+npm run dev          # http://localhost:3000
 ```
 
-El servidor queda en http://localhost:3000
+Hacen falta las claves en `.env.local`, que está ignorado por git. Las que usa
+el sitio están listadas en [docs/despliegue.md](docs/despliegue.md) §5.
+
+```bash
+npm test             # lint y las tres pruebas de nodo: lo mismo que el CI
+npm run test:e2e     # las 67 pruebas de Playwright, en tres navegadores
+zsh supabase/validar-local.sh    # el esquema, RLS y el seed en un Postgres descartable
+```
 
 ## Estructura del repositorio
 
 ```
-/app          rutas y componentes (App Router)
-/public       archivos estáticos
-/docs         documentación y registro de prompts
+/app                 rutas y componentes (App Router)
+/public              archivos estáticos
+/docs                documentación, arneses de prueba y registro de prompts
+/e2e                 las pruebas de Playwright
+/supabase            migraciones, seed y los siete arneses de base de datos
+/.github/workflows   el pipeline de integración continua
 ```

@@ -21,16 +21,48 @@ async function buscarClase(slug) {
   return data
 }
 
-// Las tres clases se prerenderizan en el build. Si la base no responde en ese
-// momento, la lista queda vacía y Next genera las páginas a demanda: no rompe
-// el build.
+// LO UNICO DEL PROYECTO QUE CONSULTA SUPABASE DURANTE LA COMPILACION. Las tres
+// clases se prerenderizan acá; todo el resto del sitio es dinámico.
+//
+// VA ENVUELTO EN try/catch, y no por prolijidad: un build que necesita que un
+// servicio externo esté arriba es un build que no compila el día que ese
+// servicio tiene un problema. Devolver la lista vacía deja que Next genere las
+// tres páginas a demanda, que es lo que ya pasa con cualquier slug que no esté
+// en la lista.
+//
+// El `if (error)` de abajo no alcanzaba, y el comentario que decía que no rompe
+// el build era falso: `clienteSupabase()` **tira** cuando falta
+// NEXT_PUBLIC_SUPABASE_URL, o sea antes de que haya consulta y por lo tanto
+// antes de que haya `error`. Cubría "la base no contesta", no "no hay
+// configuración". Medido en un clon sin `.env.local`, que es la única forma de
+// medirlo porque ese archivo está ignorado por git: el build cortaba con
+// `Error: supabaseUrl is required` en "Collecting page data".
+//
+// Y EL CANJE QUE PARECIA TENER ESTO, NO EXISTE. Medido: **ni acá ni en
+// producción** se prerenderiza ninguna de las tres páginas. El header del
+// layout raíz lee cookies, y eso degrada todas las rutas a dinámicas, así que
+// con variables Next trae los tres slugs, intenta prerenderizarlos y termina
+// sirviéndolos a demanda igual. La única diferencia observable entre un build
+// con variables y uno sin ellas es el marcador del resumen: `ƒ` contra `●`, y
+// el `●` sin variables no tiene ninguna página detrás.
+//
+// Contraprueba, en un clon y sacando solo `<Header />` del layout: aparecen
+// flow.html, power.html y prenatal.html, el resumen muestra la columna `1h` del
+// `revalidate` de arriba, y el build pasa de 1 página estática a 16. Esa es la
+// medida exacta de lo que cuesta leer cookies en el layout raíz, y es la deuda
+// del caché que CLAUDE.md ya tenía anotada sin número.
 export async function generateStaticParams() {
-  const { data, error } = await clienteSupabase().from('tipos_clase').select('slug')
-  if (error) {
-    console.error('No se pudieron listar los slugs de las clases:', error.message)
+  try {
+    const { data, error } = await clienteSupabase().from('tipos_clase').select('slug')
+    if (error) {
+      console.error('No se pudieron listar los slugs de las clases:', error.message)
+      return []
+    }
+    return data.map((clase) => ({ slug: clase.slug }))
+  } catch (falla) {
+    console.error('No se pudo consultar Supabase en el build:', falla.message)
     return []
   }
-  return data.map((clase) => ({ slug: clase.slug }))
 }
 
 export async function generateMetadata({ params }) {

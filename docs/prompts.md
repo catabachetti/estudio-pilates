@@ -1159,6 +1159,180 @@ el mismo no habría cambiado nada.
 
 ---
 
+## 2026-11-03 — Módulo 14: el CI encontrando una medición mal hecha
+
+**Prompt:** GitHub Actions, que el plan del módulo 13 había descartado. Que el
+pipeline bloquee de verdad, secrets con la sintaxis que corresponde y sin un
+solo valor en el YAML, y una contraprueba: romper algo a propósito, ver el
+pipeline en rojo y restaurarlo.
+
+### El plan afirmaba como medido algo que no lo estaba
+
+El plan de este módulo decía, en una tabla de resultados medidos:
+
+> `npm run build` **sin ninguna variable de entorno** → funciona. Todas las
+> rutas son dinámicas y `clienteSupabase()` solo corre al atender un pedido.
+
+**La primera corrida del pipeline lo falsificó.** Dos de los tres jobs cortaron
+en `npm run build`:
+
+```
+Error: supabaseUrl is required.
+    at app/lib/supabase.js:16:10
+    at app/clases/[slug]/page.jsx:28:33
+> Build error occurred
+Error: Failed to collect page data for /clases/[slug]
+```
+
+`generateStaticParams` consulta Supabase al compilar. Era la **única** función
+del proyecto que lo hacía, y la afirmación de que ninguna lo hacía era falsa por
+una sola.
+
+**Lo que importa es por qué la medición estaba mal.** Era:
+
+```sh
+env -i PATH="$PATH" HOME="$HOME" npm run build
+```
+
+`env -i` limpia el **entorno del proceso**. No borra `.env.local` **del disco**,
+y Next lo carga por su cuenta al arrancar. La variable estuvo ahí todo el
+tiempo, y el comando parecía exactamente la forma rigurosa de medirlo.
+
+Y lo que lo convierte en una trampa: **`.env.local` está en `.gitignore`**, así
+que no aparece en el repositorio ni en ninguna revisión del diff. La única forma
+de medirlo es un árbol con solo los archivos que git versiona:
+
+```sh
+git ls-files -z | rsync -0 --files-from=- -q . /un/directorio/limpio/
+cd /un/directorio/limpio && npm ci && npm run build
+```
+
+Ahí falló al primer intento. **La regla:** para comprobar que algo funciona *sin*
+una configuración, no alcanza con quitarla del entorno; hay que comprobarlo donde
+la configuración no existe. Un runner limpio es el primer lugar del proyecto
+donde eso pasa de verdad, y es la respuesta a "¿para qué sirve un CI si ya probé
+todo en mi máquina?".
+
+### Los logs no se podían leer, y eso cambió el método
+
+El pedido fue leer los logs por la API de GitHub, con el repositorio público. El
+endpoint `actions/jobs/{id}/logs` devuelve **403 sin autenticación**, incluso en
+un repositorio público, y `gh` no estaba instalado.
+
+Se dijo eso en vez de adivinar el contenido de los logs, y se reprodujeron las
+dos fallas localmente, que además fue más rápido. **Lo que sí se podía leer sin
+autenticación** —la API de jobs, que da el nombre y la conclusión de cada paso—
+alcanzó para contestar la pregunta de fondo:
+
+```
+contrato con Mercado Pago     failure   paso 5: Run npm run build
+estático y unitario           failure   paso 6: build
+reglas de la base             failure   paso 11: extender la agenda sin pisar el catálogo
+E2E contra Supabase (a mano)  skipped
+```
+
+**Dos causas distintas, no una propagándose.** Y `base` llegando al paso 11
+demostró lo que estaba en duda: la búsqueda portable de Postgres funciona en
+`ubuntu-latest` y los **seis** arneses anteriores pasaron ahí, carrera por el
+último lugar incluida.
+
+La segunda causa fue barata y de la misma familia:
+`probar-extender-agenda.sh` tenía escrito a mano
+`P=/Users/catalina/Documents/estudio-pilates/supabase`, mientras los otros seis
+derivan la ruta con `$(dirname "$0")`. Pasaba en una sola máquina del mundo.
+
+### El arreglo había que reescribirlo, porque el canje no existía
+
+La primera versión del arreglo documentaba un canje: en el CI las tres páginas
+de detalle se generan a demanda, en producción se prerenderizan igual que antes.
+**Eso era razonado, no medido, y al medirlo resultó falso.** Dos builds del mismo
+árbol:
+
+| | marcador de `/clases/[slug]` | páginas prerenderizadas |
+| --- | --- | --- |
+| sin variables | `●` (SSG) | **0** |
+| con variables | `ƒ` (dinámica) | **0** |
+
+Con variables, Next trae los tres slugs, intenta prerenderizarlos y los degrada
+a dinámicos igual, porque el header del layout raíz lee cookies. Lo único que
+cambia entre los dos builds es el marcador del resumen.
+
+**Contraprueba, en un clon y sacando una sola línea —`<Header />` del layout:**
+aparecen `flow.html`, `power.html` y `prenatal.html`, el resumen muestra la
+columna `1h` del `revalidate`, y el build pasa de **1 página estática a 16**.
+
+Eso le puso número a una deuda que CLAUDE.md tenía anotada sin número desde
+octubre: lo que cuesta leer cookies en el layout raíz es que todo el sitio sea
+dinámico. **El hallazgo salió de un fallo del CI que no tenía nada que ver.**
+
+### La demostración en vivo de para qué sirve la regla de rama
+
+No hubo que argumentarlo. En el commit del PR, GitHub tenía reportado:
+
+```
+check runs (GitHub Actions)              statuses (otros servicios)
+  estático y unitario        failure       Vercel          success
+  reglas de la base          failure
+  contrato con Mercado Pago  failure
+```
+
+Tres checks en rojo y **Vercel desplegó y reportó éxito**, por un canal distinto
+de la misma API: Actions reporta *check runs*, Vercel reporta un *commit status*.
+Ninguno consulta al otro.
+
+**La precisión que ordena el argumento:** en una rama Vercel despliega un
+**preview**, no producción. Así que lo que la corrida demuestra no es "el CI en
+rojo llegó a producción" — demuestra que los dos pipelines no se consultan, y por
+lo tanto que el único portón entre un cambio roto y producción es el **merge**.
+
+### El fallo accidental hizo la mitad de la contraprueba planeada
+
+El plan pedía romper tres cosas a propósito, una por job, porque *"un CI que
+nunca se vio fallar es una comprobación que no puede fallar"*. La primera corrida
+mostró **los tres jobs en rojo sin que nadie los rompiera**, así que ya quedó
+demostrado que cada uno corta.
+
+Eso cambió el objetivo de la contraprueba deliberada: en vez de "ver cada job en
+rojo", apuntar a **pasos cuyo fallo todavía no se vio**. El `build` de dos jobs y
+el último arnés de `base` ya se vieron cortar; lo que faltaba era un paso de
+pruebas unitarias, un arnés del medio y un arnés del webhook.
+
+### La contraprueba, con el paso predicho de antemano
+
+Tres regresiones **reales en código real**, una por job, y las tres son errores
+que ya habían pasado en el proyecto: el `.gte('fecha')` del bug de `sinAgenda`,
+el orden de los `delete` que daba el `23503`, y el `catch` de la firma
+devolviendo inválida como válida.
+
+Lo que se verificó **antes** de pushear, y es lo que hace que la contraprueba
+pruebe algo: **que el lint y el build siguieran pasando con las tres roturas
+puestas.** Si alguna rompiera el lint, el job cortaría en el paso 5 y el rojo
+vendría del lint, no de la prueba que se quiere ver cortar.
+
+Eso permitió **predecir el paso exacto** de cada fallo y escribirlo en el
+mensaje del commit antes de que corriera:
+
+| Job | Paso predicho | Paso que falló |
+| --- | --- | --- |
+| estático y unitario | 7, pruebas unitarias | **7** |
+| reglas de la base | 9, limpieza de datos de prueba | **9** |
+| contrato con Mercado Pago | 6, firma del webhook, 13 casos | **6** |
+
+Los tres, en el paso previsto. El commit siguiente los restauró y la corrida
+volvió a verde.
+
+### Un hallazgo colateral en el README
+
+Escribiendo la insignia del workflow apareció que el README prometía: *"Si una
+clase está completa, pueden anotarse en lista de espera y **entran
+automáticamente cuando alguien cancela**"*.
+
+La tabla `lista_espera` existe con sus políticas de RLS, pero **ninguna pantalla
+le escribe** y no hay promoción automática en ninguna función ni disparador.
+Hoy "Lista de espera" en `/reservar` es un enlace de WhatsApp. El README decía
+eso desde septiembre, y de paso tenía cinco de seis entregables sin tildar
+estando los seis hechos.
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título

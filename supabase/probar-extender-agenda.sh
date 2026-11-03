@@ -13,8 +13,28 @@
 #
 # Uso: zsh supabase/probar-extender-agenda.sh
 set -e
-export PATH=/Library/PostgreSQL/18/bin:$PATH
-D="$(mktemp -d)"; P=/Users/catalina/Documents/estudio-pilates/supabase
+# Los binarios de Postgres, donde esten. Antes esto era una ruta fija de macOS
+# (/Library/PostgreSQL/18/bin) y por eso estos arneses no podian correr en el
+# CI: ubuntu-latest trae Postgres instalado pero no en el PATH.
+#
+# Se buscan en orden y se corta con un mensaje claro si no aparecen, en vez de
+# fallar mas adelante con "command not found".
+ruta_de_postgres() {
+  command -v initdb > /dev/null 2>&1 && return 0
+  # null_glob acotado a esta funcion: zsh, al contrario de bash, aborta cuando un
+  # glob no coincide con nada, y aca la mayoria de los candidatos no van a existir.
+  setopt local_options null_glob
+  local d
+  for d in /Library/PostgreSQL/*/bin /usr/lib/postgresql/*/bin /usr/local/pgsql/bin /opt/homebrew/opt/postgresql*/bin; do
+    if [ -x "$d/initdb" ]; then export PATH="$d:$PATH"; return 0; fi
+  done
+  echo "No encontre initdb. Hace falta PostgreSQL para este arnes." >&2
+  echo "Buscado en: el PATH, /Library/PostgreSQL/*/bin, /usr/lib/postgresql/*/bin," >&2
+  echo "/usr/local/pgsql/bin y /opt/homebrew/opt/postgresql*/bin" >&2
+  return 1
+}
+ruta_de_postgres || exit 1
+D="$(mktemp -d)"; P="$(cd "$(dirname "$0")" && pwd)"
 trap 'pg_ctl -D "$D/pg" stop -m fast >/dev/null 2>&1 || true; rm -rf "$D"' EXIT
 PUERTO=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 initdb -D "$D/pg" -U prueba --auth=trust -E UTF8 --locale=C > /dev/null

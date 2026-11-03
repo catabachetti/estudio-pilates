@@ -154,6 +154,17 @@ precondición, así que se agrupan por ella.
 C5 comprueba además que con las dos claves cargadas el registro **no** diga que
 falta configuración: ese aviso es solo para cuando hay una sola.
 
+**Y este arnés fue tipo (a) hasta el módulo 14.** Las cuatro configuraciones
+reusaban el puerto 3001, matando al servidor anterior con `lsof`. Donde `lsof`
+no está —un runner de CI— no mataba nada, el servidor nuevo no podía tomar el
+puerto, y el curl de espera **igual contestaba**, porque contestaba el viejo.
+Las cuatro configuraciones se volvían **una**, y el arnés no lo decía.
+
+Falló ruidosamente por casualidad, porque C1 a C8 esperan códigos distintos.
+Con dos casos de expectativa igual habría pasado en verde midiendo nada. Ahora
+va **un puerto por caso**: no hay nada que matar, y si un servidor no atiende, el
+arnés corta. El detalle está en `docs/despliegue.md` §16.
+
 ### 3.6 La agenda agotada — dos niveles
 
 El bug: `ultimaFecha` tomaba la última clase de la tabla **sin mirar si ya
@@ -744,6 +755,7 @@ zsh supabase/probar-bloqueo.sh
 zsh supabase/probar-acreditacion.sh
 zsh supabase/probar-limpieza.sh
 zsh supabase/probar-agenda-agotada.sh
+zsh supabase/probar-extender-agenda.sh
 
 # contrato con Mercado Pago
 MP_WEBHOOK_SECRET=cualquier-cosa npx next start -p 3001 &
