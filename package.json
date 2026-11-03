@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +13,8 @@
     "lint": "eslint .",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:informe": "playwright show-report"
+    "test:e2e:informe": "playwright show-report",
+    "test": "npm run lint -- --max-warnings 0 && node docs/ejemplos/probar-contrasena.mjs && node docs/ejemplos/probar-esquemas.mjs && node docs/ejemplos/probar-agenda.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

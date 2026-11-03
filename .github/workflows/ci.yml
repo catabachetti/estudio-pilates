@@ -1,0 +1,234 @@
+# Integración continua.
+#
+# QUE BLOQUEA ESTE PIPELINE, Y QUE NO. Bloquea el **merge**, no el **deploy**.
+# Vercel deploya con su propia integración de GitHub, en paralelo a esto, y los
+# dos escuchan el mismo push sin esperarse: si este workflow falla, Vercel
+# deploya igual.
+#
+# Lo que cierra ese hueco es una regla de protección de rama sobre `main`, con
+# dos casillas: exigir pull request antes de mergear, y exigir que estos checks
+# pasen. La segunda sin la primera no sirve de nada, porque un push directo la
+# saltea. Está explicado en docs/despliegue.md.
+#
+# POR QUE NO HAY PASO DE DEPLOY, que es lo que haría un pipeline de libro con
+# `vercel deploy --prod`: reemplazaría un pipeline que ya funciona, y crearía un
+# secret con permiso para desplegar a producción. Hoy ningún secret de este
+# repositorio puede tocar el sitio en vivo.
+#
+# Y NO HACE FALTA NINGUN SECRET para lo que corre en cada push. Eso no es una
+# omisión, es un resultado: nada de lo que se ejecuta acá toca un servicio
+# externo. Los secrets aparecen solo en el job manual del final.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Para el job de E2E, que no corre en cada push. Ver abajo.
+  workflow_dispatch:
+
+# Solo lectura. El workflow no escribe en el repositorio ni publica nada, así
+# que no necesita más.
+permissions:
+  contents: read
+
+# Si llegan dos pushes seguidos a la misma rama, el primero se cancela: lo que
+# importa es si el último está verde.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  calidad:
+    name: estático y unitario
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # La versión de node sale de `engines` en package.json y no está escrita
+      # acá: una sola fuente, igual que el resto del proyecto.
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+
+      # `ci` y no `install`: instala exactamente lo que dice package-lock.json y
+      # falla si los dos no coinciden, en vez de resolver versiones nuevas.
+      - run: npm ci
+
+      - name: lint
+        run: npx eslint . --max-warnings 0
+
+      # El build corre SIN variables de entorno, y eso está medido: todas las
+      # rutas son dinámicas porque el header lee cookies, así que ninguna página
+      # consulta Supabase durante la compilación.
+      - name: build
+        run: npm run build
+
+      # Cálculo puro: las reglas de la contraseña, los esquemas de validación y
+      # el armado de la agenda. Ninguna toca la red.
+      - name: pruebas unitarias
+        run: |
+          node docs/ejemplos/probar-contrasena.mjs
+          node docs/ejemplos/probar-esquemas.mjs
+          node docs/ejemplos/probar-agenda.mjs
+
+  # ---------------------------------------------------------------------------
+  base:
+    name: reglas de la base
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ES EL JOB QUE MAS VALOR AGREGA, y el que el plan del módulo 13 descartó
+      # sin medir. Acá viven las reglas del negocio: la carrera por el último
+      # lugar con dos transacciones reales, el bloqueo progresivo de ingreso y
+      # la idempotencia de la acreditación.
+      #
+      # No hace falta `npm ci`: estos arneses solo usan psql, initdb, pg_ctl y
+      # python3. Levantan su propio Postgres descartable y corren las doce
+      # migraciones de verdad.
+      - name: zsh, que los arneses usan
+        run: |
+          if ! command -v zsh > /dev/null; then
+            sudo apt-get update && sudo apt-get install -y zsh
+          fi
+          zsh --version
+
+      # Se deja a la vista dónde están los binarios: si algún día el runner
+      # cambia de versión, este paso lo muestra antes de que falle otro.
+      - name: dónde está Postgres en este runner
+        run: |
+          ls -d /usr/lib/postgresql/*/bin || true
+          "$(ls -d /usr/lib/postgresql/*/bin | tail -1)/initdb" --version
+
+      - name: esquema, RLS y el seed dos veces
+        run: zsh supabase/validar-local.sh
+
+      - name: reservar y cancelar, con la carrera por el último lugar
+        run: zsh supabase/probar-reservas.sh
+
+      - name: bloqueo progresivo de ingreso
+        run: zsh supabase/probar-bloqueo.sh
+
+      - name: acreditación de créditos, con contraprueba del guardia viejo
+        run: zsh supabase/probar-acreditacion.sh
+
+      - name: limpieza de datos de prueba, con sus dos frenos
+        run: zsh supabase/probar-limpieza.sh
+
+      - name: el aviso de agenda agotada
+        run: zsh supabase/probar-agenda-agotada.sh
+
+      - name: extender la agenda sin pisar el catálogo
+        run: zsh supabase/probar-extender-agenda.sh
+
+  # ---------------------------------------------------------------------------
+  webhook:
+    name: contrato con Mercado Pago
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # LAS CLAVES SON INVENTADAS Y ESO ES EL PUNTO. El HMAC es simétrico, así
+      # que el arnés firma con la misma clave que el handler: los 21 casos se
+      # verifican sin una sola credencial real y sin salir a la red.
+      #
+      # El caso del "pago que Mercado Pago no encuentra" también pasa sin red:
+      # sin MP_ACCESS_TOKEN, `consultarPago` corta antes de intentar la llamada
+      # y el handler devuelve el 500 que corresponde.
+      - name: firma del webhook, 13 casos
+        env:
+          MP_WEBHOOK_SECRET: clave-inventada-para-el-ci
+        run: |
+          npx next start -p 3200 &
+          for i in $(seq 1 60); do
+            curl -sf -o /dev/null "http://localhost:3200/" && break
+            sleep 1
+          done
+          URL_BASE=http://localhost:3200 node docs/ejemplos/probar-webhook.mjs
+
+      # Este arnés levanta sus propios servidores, uno por combinación de
+      # claves, y les pasa los valores por entorno.
+      - name: las dos claves de firma, 8 casos
+        run: |
+          if ! command -v zsh > /dev/null; then
+            sudo apt-get update && sudo apt-get install -y zsh
+          fi
+          zsh docs/ejemplos/probar-webhook-dos-claves.sh
+
+  # ---------------------------------------------------------------------------
+  # NO CORRE EN CADA PUSH, A PROPOSITO. Solo a mano, desde la pestaña Actions.
+  #
+  # El motivo: las pruebas E2E escriben en la ÚNICA base de datos que hay. Cada
+  # corrida crearía cuentas y reservas en la base del sitio. Lo que lo
+  # desbloquearía es un segundo proyecto de Supabase, que es una decisión
+  # aparte.
+  #
+  # Y es el único lugar donde aparecen secrets. Van por entorno y no a un
+  # archivo: `e2e/fixtures.js` lee `.env.local` y deja que el entorno del
+  # proceso le gane, así que no hay que escribir ninguna credencial en disco.
+  e2e:
+    name: E2E contra Supabase (a mano)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+          cache: npm
+      - run: npm ci
+
+      # Si los secrets no están configurados, el job se saltea con el motivo en
+      # vez de fallar: un fallo acá parecería un bug del sitio. Es el mismo
+      # patrón que usa admin.spec.js con las credenciales de administración.
+      #
+      # El `if` de un job no puede leer el contexto `secrets`, así que se
+      # comprueba en un paso y se decide con su salida.
+      - name: ¿están los secrets?
+        id: secretos
+        env:
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          if [ -n "$SUPABASE_SECRET_KEY" ] && [ -n "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "hay=si" >> "$GITHUB_OUTPUT"
+          else
+            echo "hay=no" >> "$GITHUB_OUTPUT"
+            echo "::notice::Faltan los secrets de Supabase, así que las E2E se saltean. Se configuran en Settings → Secrets and variables → Actions."
+          fi
+
+      - name: navegadores
+        if: steps.secretos.outputs.hay == 'si'
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: la suite
+        if: steps.secretos.outputs.hay == 'si'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          MP_ACCESS_TOKEN: ${{ secrets.MP_ACCESS_TOKEN }}
+          E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+        run: npm run test:e2e
+
+      # El informe y las trazas quedan descargables, que es lo que hace útil al
+      # Trace Viewer cuando el fallo pasó en un runner y no en tu máquina.
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.secretos.outputs.hay == 'si' }}
+        with:
+          name: playwright-informe
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
