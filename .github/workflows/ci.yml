@@ -164,10 +164,20 @@ jobs:
           MP_WEBHOOK_SECRET: clave-inventada-para-el-ci
         run: |
           npx next start -p 3200 &
+          # SIN -f, Y ES IMPORTANTE. Acá el sitio corre sin variables de
+          # Supabase, así que TODAS las páginas contestan 500 al atenderse.
+          # `curl -sf` falla con cualquier código >= 400, o sea que esta espera
+          # nunca tenía éxito: gastaba los 60 segundos completos y seguía de
+          # todos modos. Funcionó por suerte, porque el arnés solo necesita que
+          # el servidor atienda, no que devuelva 200. Sin -f, curl devuelve 0
+          # en cuanto hubo respuesta HTTP, que es la pregunta correcta.
           for i in $(seq 1 60); do
-            curl -sf -o /dev/null "http://localhost:3200/" && break
+            curl -s -o /dev/null "http://localhost:3200/" && break
             sleep 1
           done
+          curl -s -o /dev/null "http://localhost:3200/" || {
+            echo "el servidor no atiende en 3200"; exit 1
+          }
           URL_BASE=http://localhost:3200 node docs/ejemplos/probar-webhook.mjs
 
       # Este arnés levanta sus propios servidores, uno por combinación de

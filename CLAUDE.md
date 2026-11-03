@@ -355,6 +355,39 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   en `/horarios` y en la home, `horariosDeAtencion()` en el footer, y el
   tablero.
 
+## Integración continua
+
+- **El pipeline bloquea el merge, no el deploy.** Vercel deploya con su propia
+  integración de GitHub, en paralelo al workflow, y los dos escuchan el mismo
+  push sin esperarse. Lo que cierra el hueco es la regla de protección de rama
+  sobre `main`, con las dos casillas: exigir pull request **y** exigir los
+  checks. La segunda sin la primera no sirve, porque un push directo las
+  saltea. Está en `docs/despliegue.md` §13, con los nombres exactos de los
+  checks.
+- **Nada de lo que corre en cada push toca un servicio externo, y hay que
+  mantenerlo así.** Es lo que hace que el pipeline no necesite ningún secret.
+  Un paso nuevo que precise una credencial va al job manual de E2E, no a los
+  tres que corren siempre.
+- **El build no puede necesitar la base.** `generateStaticParams` de
+  `/clases/[slug]` es lo único del proyecto que consulta Supabase al compilar,
+  y devuelve lista vacía si falla. Un build que depende de que un tercero esté
+  arriba no compila el día que ese tercero tiene un problema, ni en el CI ni en
+  Vercel. No agregar lecturas de datos en tiempo de build.
+- **Para comprobar que algo funciona *sin* una configuración, no alcanza con
+  sacarla del entorno.** `env -i npm run build` limpia el entorno del proceso
+  pero no borra `.env.local` del disco, y Next lo carga por su cuenta. Como ese
+  archivo está en `.gitignore`, es invisible en el diff. La forma correcta es un
+  árbol con solo los archivos que git versiona:
+  `git ls-files -z | rsync -0 --files-from=- -q . /destino/limpio/`.
+  Un CI encuentra esta clase de error y una verificación local no.
+- **Los arneses derivan su ruta con `$(dirname "$0")`, nunca escrita a mano.**
+  Un `P=/Users/...` pasa en una sola máquina del mundo y el CI lo encuentra.
+  Y la búsqueda de `initdb` lleva `null_glob` acotado a la función, porque zsh
+  —al contrario de bash— aborta cuando un glob no coincide con nada.
+- **Playwright y `probar-preferencia.mjs` no corren en cada push**, a propósito:
+  el primero escribe en la única base que hay, el segundo le pega a la API de
+  Mercado Pago de verdad. `docs/despliegue.md` §11 dice cómo se corren a mano.
+
 ## Alcance descartado
 
 Lo que se decidió no hacer, para que no se confunda con un olvido.
@@ -404,6 +437,15 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   Las llamadas a `revalidatePath` se dejan igual: limpian el Router Cache del
   navegador y son la línea que va a hacer falta el día que algo se cachee de
   verdad. Pero no son lo que hace visible un cambio hoy.
+
+  **Y ahora hay número, que salió del CI de rebote.** Contraprueba en un clon,
+  sacando una sola línea —`<Header />` del layout raíz— y compilando con las
+  mismas variables: aparecen `flow.html`, `power.html` y `prenatal.html`, el
+  resumen muestra la columna `1h` del `revalidate`, y el build pasa de **1
+  página estática a 16**. Esa es la medida exacta de lo que cuesta leer cookies
+  en el layout raíz. No se cambia: un header que no sabe si hay sesión hay que
+  pintarlo en el navegador, o sea `'use client'` y un parpadeo. Lo que estaba
+  mal era tener un `revalidate` escrito sin decir que no hace nada.
 
 - **No hay forma de quitar créditos desde el panel.** Se pueden otorgar y nada
   más. Si alguien se equivoca —un doble clic, el paquete equivocado— hoy se
