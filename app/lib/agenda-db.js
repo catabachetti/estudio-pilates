@@ -41,6 +41,7 @@ export async function agendaDeLaSemana(diaPedido, supabase = clienteSupabase()) 
     //
     // Las clases pasadas no se borran, así que la condición "la tabla quedó
     // sin ninguna clase" no se cumple nunca sola.
+    .gte('fecha', claveHoy)
     .order('fecha', { ascending: false })
     .limit(1)
     .maybeSingle()

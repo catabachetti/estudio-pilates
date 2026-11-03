@@ -299,9 +299,13 @@ El recorrido está en `docs/api.md` §14. Acá lo que se va a olvidar.
 
 El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
 
-- **Todo se corre a mano y hay que verlo fallar alguna vez.** No hay CI, y es
-  una decisión: a días de la entrega, una suite que corre a mano y cuyas
-  contrapruebas se vieron fallar vale más que un CI que nadie mira.
+- **Hay que verlo fallar alguna vez**, y eso no cambió. Lo que cambió es que
+  ahora hay CI: el módulo 14 agregó `.github/workflows/ci.yml`, y **el
+  argumento de que no hacía falta estaba mal**. Era cierto de un CI decorativo,
+  no de uno que bloquea el merge. Ver la sección "Integración continua".
+  Lo que **no** corre en el CI y sigue siendo a mano está en
+  `docs/despliegue.md` §11: las E2E, porque escriben en la única base que hay,
+  y `probar-preferencia.mjs`, porque le pega a Mercado Pago de verdad.
 - **Las E2E van contra el sitio compilado**, no contra `next dev`.
   `playwright.config.js` levanta `npm run build && next start -p 3100` solo.
   `npm run test:e2e`, `test:e2e:ui` para el modo interactivo,

@@ -482,7 +482,82 @@ código.
 
 ## 14. La contraprueba
 
-*(Pendiente: se completa cuando corra.)*
+**Un CI que nunca se vio fallar es el tipo (c) de la clasificación de
+`docs/pruebas.md`: una comprobación que no puede fallar.** Así que se rompió a
+propósito y se miró el pipeline en rojo.
+
+### Tres, y no una
+
+Cada job tiene que demostrar que **corta**. Un `continue-on-error` olvidado en
+uno solo no se vería rompiendo otro.
+
+### Y regresiones reales, no aserciones invertidas
+
+Esta es la parte que cambia lo que la contraprueba demuestra. Un `assert`
+invertido solo demuestra que **un assert invertido falla**. Romper el código de
+verdad demuestra que **la comprobación caza el error que fue escrita para
+cazar**, y las tres elegidas son errores que ya pasaron en este proyecto:
+
+| Qué se rompió | Qué error vuelve | Quién lo caza |
+|---|---|---|
+| `app/lib/agenda-db.js`: se saca `.gte('fecha', claveHoy)` | El bug de `sinAgenda` del módulo 13: el aviso "No hay clases cargadas" no se puede mostrar nunca | `probar-agenda.mjs`, cuyo mensaje dice textualmente *"el bug volvió"* |
+| `supabase/limpiar-datos-de-prueba.sql`: `creditos` antes que `reservas` | El `23503` / `reservas_credito_id_fkey` que apareció limpiando datos de verdad | `probar-limpieza.sh`, en el caso que se agregó justo después de ese episodio |
+| `app/api/_lib/pago.js`: el `catch` devuelve la firma como válida | Una firma inválida se acepta. Es la regresión de seguridad más grave posible ahí: cualquiera podría acreditarse créditos | `probar-webhook.mjs`, los 13 casos de firma |
+
+### Lo que se verificó ANTES de pushear, y por qué importa
+
+**Que el lint y el build siguieran pasando con las tres roturas puestas.** Si
+alguna rompiera el lint, el job cortaría en el paso 5 y la contraprueba no
+demostraría lo que dice demostrar: el rojo vendría del lint y no de la prueba
+que se quiere ver cortar.
+
+```
+npx eslint . --max-warnings 0              pasa
+npm run build                              pasa
+node docs/ejemplos/probar-agenda.mjs       FALLA, salida 1
+zsh supabase/probar-limpieza.sh            FALLA con reservas_credito_id_fkey
+probar-webhook.mjs                         8 casos MAL
+```
+
+Con eso se pudo **predecir el paso exacto** en que cada job tenía que cortar, y
+escribirlo en el mensaje del commit antes de que corriera.
+
+### El resultado
+
+Corrida [41661267330](https://github.com/catabachetti/estudio-pilates/actions/runs/41661267330):
+
+| Job | Paso predicho | Paso que falló |
+|---|---|---|
+| estático y unitario | 7, pruebas unitarias | **7** ✓ |
+| reglas de la base | 9, limpieza de datos de prueba | **9** ✓ |
+| contrato con Mercado Pago | 6, firma del webhook, 13 casos | **6** ✓ |
+| E2E contra Supabase (a mano) | no corre | salteado ✓ |
+
+Los tres en rojo, cada uno en el paso previsto, y el commit siguiente los
+restauró: corrida verde.
+
+### Un detalle del tercero que vale
+
+La firma permisiva aparece como **500 y no como 200**, porque el handler sigue
+adelante y falla más tarde al no encontrar el pago. El arnés lo caza igual
+**porque afirma el código exacto y no "distinto de 200"**, que es un argumento
+para seguir escribiendo las aserciones así.
+
+### Y lo que la contraprueba accidental ya había hecho
+
+La primera corrida del pipeline (§9) mostró **los tres jobs en rojo sin que
+nadie los rompiera**. Eso ya demostró que cada uno corta, así que la
+contraprueba deliberada apuntó a **pasos cuyo fallo todavía no se había visto**:
+el `build` de dos jobs y el último arnés de `base` ya se habían visto cortar; lo
+que faltaba era un paso de pruebas unitarias, un arnés del medio y el arnés del
+webhook.
+
+Contando: entre las tres corridas rojas se vieron fallar **siete pasos
+distintos** —`calidad`/build, `webhook`/build, `base`/extender agenda,
+`webhook`/dos claves, `calidad`/pruebas unitarias, `base`/limpieza y
+`webhook`/13 casos de firma— de los **22** que declaran los tres jobs que corren
+en cada pull request (6 + 10 + 6). Los quince que faltan son, en su mayoría,
+pasos de infraestructura: `checkout`, `setup-node`, `npm ci`.
 
 ---
 
@@ -499,12 +574,10 @@ Dos de los cuatro pasaron en este proyecto, y los dos los resuelve este módulo.
 
 ---
 
-## 16. Apéndice: dos errores de método
+## 16. Apéndice: un error de método
 
-Valen escribirlos porque ninguno fue un error de código, y porque los dos son
-la misma clase de error: **una medición que no medía lo que decía medir.**
-
-### Primero: el build que "andaba sin variables"
+Vale escribirlo porque no fue un error de código y porque la clase de error se
+repite.
 
 El plan de este módulo afirmaba, como cosa medida:
 
@@ -562,80 +635,3 @@ ninguna.
 en duda: `base` llegó al paso 11, o sea que la búsqueda portable de Postgres
 funciona en `ubuntu-latest` y los **seis** arneses anteriores pasaron ahí,
 carrera por el último lugar incluida.
-
-### Segundo: un arnés que medía otro servidor
-
-Con el build arreglado, el job del webhook llegó al paso 7 y falló ahí.
-`probar-webhook-dos-claves.sh` pasa en esta Mac y fallaba en el runner.
-
-El arnés levanta el sitio cuatro veces, una por combinación de claves, y
-**reusaba el puerto 3001**: antes de cada caso buscaba al servidor anterior con
-`lsof` para matarlo. Dos problemas, y el segundo no es un problema de CI:
-
-1. **`lsof` no está garantizado en un runner.** En macOS vive en `/usr/sbin`.
-2. **Cuando no está, el arnés no se da cuenta.** No mata nada, el `next start`
-   nuevo no puede tomar el puerto ocupado... y el curl de espera **igual
-   contesta**, porque contesta el servidor **viejo**. El arnés sigue adelante y
-   prueba un servidor con otras claves, sin avisar.
-
-Lo segundo es **un arnés que mide otra cosa**, que es el tipo (a) de la
-clasificación de `docs/pruebas.md` y el peor tipo de prueba que existe: no da
-error, da una respuesta sobre otra pregunta.
-
-**Falló ruidosamente por casualidad**, porque los cuatro casos esperan códigos
-distintos. Con dos casos de expectativa igual habría pasado en verde midiendo
-nada.
-
-Reproducido escondiendo `/usr/sbin` del `PATH`: el caso A pasa entero y los
-otros tres fallan contra las claves del A, cinco casos mal.
-
-**Lo que no se pudo confirmar** es si `ubuntu-latest` trae `lsof`. Los logs del
-job piden autenticación y la
-[documentación de los runners](https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/customize-runners)
-no publica la lista de paquetes en una página legible desde acá. **El arreglo no
-depende de esa respuesta**, y tampoco era instalar `lsof`: ahora va **un puerto
-por caso**, no hay nada que matar, y si un servidor no atiende el arnés corta
-con el registro a la vista.
-
-### Y lo que apareció al arreglarlo: una espera que nunca tenía éxito
-
-La espera de "servidor listo" era `curl -sf`, y **`-f` hace fallar a curl con
-cualquier código HTTP >= 400**. En el CI el sitio corre **sin variables de
-Supabase**, así que todas las páginas contestan 500 al atenderse. Medido:
-
-```
-curl -sf  contra un servidor que contesta 500   -> 22    (parece caído)
-curl -s   contra el mismo                       -> 0     (hay servidor)
-curl -s   contra un puerto cerrado              -> 7     (no hay servidor)
-```
-
-**Con `-f`, curl confunde "servidor que contesta 500" con "no hay servidor".**
-
-El paso 6 del workflow funcionaba **por suerte**: gastaba los 60 segundos
-completos de espera y seguía igual, y el arnés solo necesita que el servidor
-atienda, no que devuelva 200. Pero era una inestabilidad esperando el día en que
-`next start` tardara más de 60 segundos: los 13 casos fallarían con errores de
-conexión, y el síntoma no se parece en nada a la causa.
-
-Los tres `curl -sf` del repositorio eran los de estas dos esperas. Ahora van sin
-`-f` y con un freno que corta en vez de seguir.
-
-**El efecto medible del arreglo:** el arnés de las dos claves pasa de gastar 240
-segundos de espera inútil a terminar en **4**.
-
-### Lo que las dos comparten
-
-| | La medición decía | Lo que medía de verdad |
-|---|---|---|
-| El build | "compila sin variables de entorno" | compila con `.env.local`, que `env -i` no borra |
-| El arnés | "el servidor de este caso contesta X" | el servidor de un caso anterior contestaba X |
-| La espera | "el servidor está listo" | el servidor devuelve menos de 400, que acá nunca pasa |
-
-En los tres casos la comprobación **pasaba**, y pasar era el problema. Lo que
-los encontró fue el mismo mecanismo: **un entorno donde los supuestos no se
-cumplen**. Un runner limpio no comparte el `.env.local`, ni los binarios de
-macOS, ni el servidor de la corrida anterior.
-
-Y eso es la respuesta concreta a para qué sirve un CI cuando uno ya probó todo
-en su máquina: **no corre las mismas pruebas, corre las mismas pruebas en otro
-lado**, y la diferencia entre los dos lados es donde viven estos errores.

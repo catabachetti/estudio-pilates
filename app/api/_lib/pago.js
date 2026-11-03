@@ -119,7 +119,7 @@ export function exigirFirma(request) {
       return { dataId, modo }
     } catch (e) {
       if (!(e instanceof InvalidWebhookSignatureError)) throw e
-      return { dataId, modo }
+      ultimoFallo = e
     }
   }
 
