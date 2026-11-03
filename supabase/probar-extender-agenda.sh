@@ -34,7 +34,7 @@ ruta_de_postgres() {
   return 1
 }
 ruta_de_postgres || exit 1
-D="$(mktemp -d)"; P=/Users/catalina/Documents/estudio-pilates/supabase
+D="$(mktemp -d)"; P="$(cd "$(dirname "$0")" && pwd)"
 trap 'pg_ctl -D "$D/pg" stop -m fast >/dev/null 2>&1 || true; rm -rf "$D"' EXIT
 PUERTO=$(python3 -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1]);s.close()")
 initdb -D "$D/pg" -U prueba --auth=trust -E UTF8 --locale=C > /dev/null

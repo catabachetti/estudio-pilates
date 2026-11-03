@@ -61,9 +61,23 @@ jobs:
       - name: lint
         run: npx eslint . --max-warnings 0
 
-      # El build corre SIN variables de entorno, y eso está medido: todas las
-      # rutas son dinámicas porque el header lee cookies, así que ninguna página
-      # consulta Supabase durante la compilación.
+      # El build corre SIN variables de entorno, y la primera corrida de este
+      # workflow demostró que ANTES NO PODIA: `generateStaticParams` de
+      # /clases/[slug] consultaba Supabase durante la compilación y cortaba con
+      # `supabaseUrl is required`.
+      #
+      # La medición que decía lo contrario estaba hecha con `env -i`, que limpia
+      # el entorno del proceso pero no borra `.env.local` del disco, y Next lo
+      # carga por su cuenta. Un clon limpio es la única forma de medirlo.
+      #
+      # Ahora esa función devuelve lista vacía si no hay configuración. Lo que
+      # se gana no es independencia del CI: es que el build dejó de necesitar
+      # que un servicio externo esté arriba, acá y en Vercel.
+      #
+      # Y no se pierde nada medible: ni acá ni en producción se prerenderiza
+      # ninguna de las tres páginas de detalle, porque el header del layout raíz
+      # lee cookies y degrada todas las rutas a dinámicas. Está medido en
+      # docs/despliegue.md, con la contraprueba.
       - name: build
         run: npm run build
 
