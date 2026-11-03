@@ -100,11 +100,11 @@ where fecha >= date '2027-01-01';
 -- reservar en una clase que el script no borra.
 --
 -- Asi que primero las reservas, que son las que apuntan a los creditos.
-delete from reservas
+delete from creditos
 where user_id in (select id from auth.users where email like '%+%@%');
 
 -- Despues los creditos, que apuntan a la compra.
-delete from creditos
+delete from reservas
 where user_id in (select id from auth.users where email like '%+%@%');
 
 -- Y por ultimo las compras.
