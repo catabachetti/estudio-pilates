@@ -122,6 +122,13 @@ export default defineConfig({
       testMatch: /admin\.spec\.js/,
       use: { ...devices['Desktop Chrome'] },
     },
+    // El formulario de contacto escribe en `mensajes`, así que va solo en
+    // Chromium por la misma razón que los dos de arriba.
+    {
+      name: 'contacto',
+      testMatch: /contacto\.spec\.js/,
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
 
   webServer: {

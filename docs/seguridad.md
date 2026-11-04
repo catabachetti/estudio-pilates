@@ -492,7 +492,7 @@ La actividad del final del módulo: qué pide cada ruta y qué devuelve.
 | `/recuperar` | no | — | 200 | 200 | 200 | 200 |
 | `/cuenta` | **sí** | cualquiera | 307 | 200 | 200 | 307 |
 | `/cuenta/contrasena` | **sí** | cualquiera | 307 | 200 | 200 | 307 |
-| `/admin` y sus cinco pantallas | **sí** | **admin** | 307 | 200 + "Sin permiso" | 200 | **401** |
+| `/admin` y sus **seis** pantallas | **sí** | **admin** | 307 | 200 + "Sin permiso" | 200 | **401** |
 
 Y los endpoints de `/api/v1`, que devuelven JSON y por eso no redirigen nunca:
 
@@ -503,6 +503,29 @@ Y los endpoints de `/api/v1`, que devuelven JSON y por eso no redirigen nunca:
 | `POST /api/v1/reservas`, `PATCH /api/v1/reservas/{id}` | **sí** | cualquiera | **401** | pasa | pasa |
 | `POST /api/v1/clases`, `PATCH /api/v1/clases/{id}` | **sí** | **admin** | **401** | **403** | 200/201 |
 | `GET /api/v1/clases/{id}/reservas` | **sí** | **admin** | **401** | **403** | 200 |
+| `POST /api/v1/mensajes` | **no** | — | **201** | 201 | 201 |
+
+**Ese `POST` sin sesión es el único de la API, y es a propósito:** un formulario
+de contacto es para quien todavía no tiene cuenta. Lo que lo protege no es la
+autenticación sino un límite de frecuencia dentro de la función de la base —cinco
+por correo por hora, con **429 y `Retry-After`** cuando se pasa— y el hecho de
+que `mensajes` **no tenga política de INSERT**, así que la clave publishable no
+alcanza para escribir ahí directo.
+
+Las tres cosas que ese endpoint NO hace, dichas para que nadie las suponga:
+
+- **No frena a quien varíe el correo en cada envío.** El límite es por
+  dirección. Frena el doble clic y el bot perezoso.
+- **No tiene CAPTCHA**, por la misma decisión documentada en §3 para el login.
+- **No guarda la IP**, y eso es deliberado: limitar por IP frena mejor pero
+  obliga a guardar un dato nuevo sobre gente que ni tiene cuenta. `/privacidad`
+  afirma textualmente que no se guarda, así que si eso cambia esa página también
+  tiene que cambiar.
+
+Lo que sí está cubierto, y con prueba: el insert directo como `anon` lo rechaza
+RLS y no los permisos —`supabase/probar-mensajes.sh` distingue los dos casos a
+propósito, porque un fallo por permisos haría que la prueba pasara sin probar la
+política—.
 
 "pasa" y no un número porque ahí la autorización no es lo único que decide: en
 la medición, una cuenta de administración reservando una clase que ya tenía

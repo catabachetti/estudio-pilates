@@ -26,6 +26,10 @@ const PANTALLAS = [
   { ruta: '/admin/reservas', titulo: 'Reservas' },
   { ruta: '/admin/paquetes', titulo: 'Paquetes' },
   { ruta: '/admin/creditos', titulo: 'Créditos' },
+  // La sexta, del módulo 6 del curso: los mensajes del formulario de contacto.
+  // Se agregó acá a mano al agregar la pantalla, que es exactamente el trabajo
+  // que esta lista existe para obligar.
+  { ruta: '/admin/mensajes', titulo: 'Mensajes' },
 ]
 
 test.describe('con cuenta de administración', () => {

@@ -58,6 +58,19 @@ export const noEncontrado = (mensaje = 'No existe eso que pediste.') =>
 // a quien llama que arregle su pedido, cuando el pedido estaba bien.
 export const conflicto = (codigo, mensaje) => new ErrorDeApi(409, codigo, mensaje)
 
+// 429, con `Retry-After` en segundos. Tampoco está en la lista de la materia y
+// hace falta por el mismo motivo que el 409: "mandaste demasiados mensajes" no
+// es un pedido inválido ni un choque de estado, es un límite de frecuencia, y
+// la RFC 6585 le dio su propio código.
+//
+// La cabecera no es decorativa: sin ella, quien llama no tiene de dónde deducir
+// cuánto esperar y lo único que le queda es reintentar en seguida. Es la misma
+// razón por la que /salud la manda con su 503.
+export const demasiadosPedidos = (mensaje, segundos) =>
+  new ErrorDeApi(429, 'demasiados_pedidos', mensaje, null, {
+    'Retry-After': String(segundos),
+  })
+
 function cuerpoDeError(codigo, mensaje, detalles, id) {
   return {
     error: {

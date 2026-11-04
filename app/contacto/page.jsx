@@ -1,6 +1,8 @@
 import Image from 'next/image'
 import EncabezadoPagina from '../components/EncabezadoPagina'
+import FormularioDeContacto from '../components/FormularioDeContacto'
 import { DIRECCION } from '../datos/sitio'
+import { MOTIVOS, TEXTO_OK } from '../lib/mensajes'
 
 export const metadata = {
   title: 'Contacto | ACTIVE',
@@ -12,7 +14,39 @@ const mapa = `https://www.google.com/maps/search/?api=1&query=${encodeURICompone
   `${DIRECCION.calle}, ${DIRECCION.barrio}, ${DIRECCION.ciudad}`
 )}`
 
-export default function ContactoPage() {
+// EL RESULTADO DEL ENVÍO SIN JAVASCRIPT. La Server Action redirige acá con
+// `?m=`, y esto es lo único que informa cuando no hay JavaScript: con
+// JavaScript el formulario muestra sus tres estados y nunca navega.
+//
+// Los textos salen de `MOTIVOS` y `TEXTO_OK`, los mismos que usa la API. No se
+// escriben de nuevo acá.
+function AvisoDelEnvio({ m }) {
+  if (!m) return null
+
+  if (m === 'ok') {
+    return (
+      <p className="mensaje" role="status">
+        {TEXTO_OK}
+      </p>
+    )
+  }
+
+  const texto =
+    m === 'invalido'
+      ? 'Revisá los datos: falta algo o no tiene el formato esperado.'
+      : (MOTIVOS[m] ?? 'No pudimos enviar tu mensaje. Probá de nuevo.')
+
+  return (
+    <p className="mensaje mensaje-error" role="alert">
+      {texto}
+    </p>
+  )
+}
+
+export default async function ContactoPage({ searchParams }) {
+  // En Next 16 searchParams es una Promise, igual que params.
+  const parametros = await searchParams
+
   return (
     <main>
       <div className="media-ancho">
@@ -32,8 +66,11 @@ export default function ContactoPage() {
           bajada="Escribinos y te contamos cuál es la clase que mejor te queda según tu experiencia y tus horarios. La dirección, los horarios y el teléfono están al pie de la página."
         />
 
-        {/* E3: acá va el formulario de contacto con validación y fetch.
-            Hasta entonces, la conversación arranca por WhatsApp. */}
+        {/* E3. El aviso de abajo es para el camino SIN JavaScript; con
+            JavaScript el formulario muestra sus propios tres estados y esta
+            página no se vuelve a pedir. */}
+        <AvisoDelEnvio m={parametros?.m} />
+        <FormularioDeContacto />
 
         <section>
           <h2 className="bloque-titulo">Cómo llegar</h2>

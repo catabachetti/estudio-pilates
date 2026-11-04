@@ -1,4 +1,4 @@
-# Arquitectura: por qué este proyecto no tiene `useState`
+# Arquitectura: dónde vive el estado de este proyecto
 
 Auditoría contra los módulos 6 y 7 del curso —las clases 05 y 06— y la decisión
 de arquitectura que explica la diferencia.
@@ -7,6 +7,10 @@ de arquitectura que explica la diferencia.
 contradice lo que la clase enseña.** No es un descuido, y el documento existe
 para que no haya que adivinarlo: si alguien busca `useState` o `useEffect` acá,
 conviene que encuentre primero el motivo.
+
+**Actualizado el 4 de noviembre de 2026**, cuando el formulario de contacto
+agregó el segundo —y último— componente de cliente del proyecto. Los números de
+abajo son los de después de ese cambio; donde algo era distinto antes, se dice.
 
 Todos los números de este documento salen de contar el código. El comando está
 al lado de cada uno.
@@ -17,8 +21,8 @@ al lado de cada uno.
 
 ```sh
 grep -rn "useEffect" app/                      # 0
-grep -rn "onChange" app/                       # 1
-grep -rln "useState" app/                      # 1 archivo
+grep -rn "= useState(" app/                    # 4
+grep -rn "fetch(" app/                         # 1
 grep -rn "localStorage\|sessionStorage" app/   # 0
 grep -rn "innerHTML" app/                      # 0
 grep -rnE '\balert\(|\bconfirm\(|\bprompt\(' app/   # 0
@@ -26,16 +30,25 @@ grep -rnE '\balert\(|\bconfirm\(|\bprompt\(' app/   # 0
 
 | | Cuántos | Dónde |
 |---|---|---|
-| Directivas `'use client'` | **1** | `app/components/CampoDeContrasena.jsx` |
-| Llamadas a `useState` | **1** | el mismo archivo, línea 26 |
+| Directivas `'use client'` | **2** | `CampoDeContrasena.jsx` y `FormularioDeContacto.jsx` |
+| Llamadas a `useState` | **4** | 1 en el medidor, 3 en el formulario de contacto |
 | Llamadas a `useEffect` | **0** | — |
 | Componentes controlados | **0** | — |
+| Llamadas a `fetch` | **1** | `FormularioDeContacto.jsx:79`, a `POST /api/v1/mensajes` |
 | Otros hooks de cliente | **0** | ni `useRef`, ni `useReducer`, ni `useContext`, ni `useMemo`, ni `useCallback`, ni `useOptimistic`, ni `useFormStatus`, ni `useTransition` |
-| Directivas `'use server'` | **7** | los siete archivos de `app/acciones/` |
+| Directivas `'use server'` | **8** | los ocho archivos de `app/acciones/` |
+| Archivos `loading.jsx` | **5** | §4.3 |
 
-**Cuidado con el grep de `'use client'`: da seis archivos y cinco son
-comentarios.** Son los lugares donde el código explica por qué *no* lleva la
-directiva. Para contar directivas de verdad hay que mirar la primera línea:
+**Cuidado con dos greps que mienten, y mienten igual.**
+
+`grep -rn "'use client'" app/` da **siete** archivos y **cinco son
+comentarios**: los lugares donde el código explica por qué *no* lleva la
+directiva. Y `grep -rn "onSubmit" app/` da **tres** y **dos son comentarios**,
+por lo mismo.
+
+En los dos casos el patrón es el mismo: en este proyecto los comentarios nombran
+mucho las cosas que **no** se hacen, así que contar coincidencias de texto da de
+más. Para contar directivas de verdad hay que mirar la primera línea:
 
 ```sh
 for f in $(grep -rl "use client" app/); do
@@ -176,29 +189,38 @@ pantalla rota:
 El error además se registra del lado del servidor con `console.error`, así que
 queda en los logs de Vercel aunque la persona solo vea el mensaje amable.
 
-### 4.3 `loading` — **no existe, y es una deuda real**
+### 4.3 `loading` — existía como deuda y se cerró
 
 ```sh
-find app -name "loading.jsx"     # ninguno
-grep -rn "Suspense" app/         # ninguno
+find app -name "loading.jsx" | wc -l     # 5
 ```
 
-Next tiene el equivalente de servidor del estado "cargando": `loading.jsx` y
-`<Suspense>`, que muestran algo mientras el componente espera sus datos. **El
-proyecto no usa ninguno de los dos.**
+**Hasta el 4 de noviembre de 2026 este estado no existía**, y la primera versión
+de este documento lo anotó como la deuda más barata del proyecto. Se cerró.
 
-Qué pasa entonces durante una consulta lenta: la persona ve **la página
-anterior**, con el indicador de carga del navegador, y nada más. No hay
-esqueleto, no hay spinner, no hay "cargando…".
+Qué pasaba antes durante una consulta lenta: la persona veía **la página
+anterior**, con el indicador de carga del navegador, y nada más. Sin esqueleto,
+sin "cargando…". **Y hay un número que mide cuánto podía doler:** `/salud` tarda
+**7,0 segundos** en devolver su 503 cuando la base no responde, porque la
+consulta no tiene tiempo límite. Siete segundos sin ninguna señal.
 
-**Y hay un número que mide cuánto puede doler:** `/salud` tarda **7,0 segundos**
-en devolver su 503 cuando la base no responde, porque la consulta no tiene
-tiempo límite —medido, y está en la deuda conocida de `CLAUDE.md`—. Siete
-segundos mirando la página anterior sin ninguna señal es exactamente el caso que
-un `loading.jsx` cubriría.
+Ahora las cinco rutas que leen de Supabase tienen el suyo:
 
-Es lo más barato de arreglar de todo este documento: un archivo por ruta lenta,
-sin tocar una línea de lógica y sin agregar un solo `'use client'`.
+```
+app/paquetes/loading.jsx
+app/clases/loading.jsx
+app/clases/[slug]/loading.jsx
+app/horarios/loading.jsx
+app/reservar/loading.jsx
+```
+
+**Y lo que importa para el argumento de este documento: no agregan una línea de
+JavaScript al navegador.** `loading.jsx` es el equivalente de servidor del
+estado "cargando" — Next envuelve la ruta en un `<Suspense>` y manda ese HTML
+mientras el componente espera. O sea que **la decisión de arquitectura no
+obligaba a renunciar a este estado**; lo que faltaba era escribir cinco
+archivos. Que la deuda durara dos meses es un dato sobre el proyecto, no sobre
+Server Components.
 
 ### 4.4 Y tampoco hay `error.jsx`
 
@@ -216,7 +238,9 @@ sitio. El de error no existe. Es la misma clase de deuda que 4.3.
 
 ---
 
-## 5. La única excepción: el medidor de contraseña
+## 5. Las dos excepciones
+
+### 5.1 El medidor de contraseña
 
 `app/components/CampoDeContrasena.jsx`, y es el archivo que hace que esta
 arquitectura sea una decisión y no una limitación.
@@ -260,6 +284,65 @@ La regla que queda escrita en `CLAUDE.md`: si aparece otro caso que parezca
 necesitar `'use client'`, no alcanza con citar este. Hay que demostrar primero
 que no se puede con CSS, y que lo que se agrega no es funcional.
 
+### 5.2 El formulario de contacto, y por qué su argumento es distinto
+
+`app/components/FormularioDeContacto.jsx`. Entró con el módulo 6 del curso, que
+pide un formulario con DOM dinámico, validación y `fetch`.
+
+**La primera mitad de la regla se cumple igual que antes:** lo que se agrega son
+los tres estados de una petición en curso —enviando, enviado, falló— y CSS no
+sabe que hay un pedido en vuelo.
+
+**La segunda mitad no se cumple, y hay que decirlo así: el `fetch` ES
+funcional.** Es el camino por el que se manda el mensaje. Si el formulario fuera
+solo `fetch`, el JavaScript sería la única forma de usarlo, y esta excepción
+violaría la regla del proyecto en vez de respetarla.
+
+**Lo que la hace admisible es que el respaldo sin JavaScript funcione.** El
+`<form>` lleva un `action` que apunta a una Server Action, así que sin
+JavaScript el navegador lo postea y el mensaje se guarda igual. Con eso el
+camino funcional es el formulario nativo y el `fetch` vuelve a ser un agregado,
+como la barra del medidor.
+
+**El respaldo no es un extra: es la condición.** Si deja de funcionar, el
+componente no corresponde. Por eso la prueba que lo verifica —caso 18 de
+`e2e/sin-javascript.spec.js`— no es una prueba más: es la que habilita al
+componente.
+
+#### Cómo conviven el `action` y el `fetch`, que es la parte que hubo que medir
+
+El `onSubmit` llama a `preventDefault()`, y la pregunta era si eso impide que
+React ejecute el `action`. **La documentación de la versión instalada no lo
+dice:** muestra los dos patrones por separado —`01-getting-started/07-mutating-data.md:132`
+para la mejora progresiva, `02-guides/interactive-apps.md:484` para el `onSubmit`
+con estado manual, y ese ejemplo **no lleva `action`**—. Lo más cercano es
+`03-api-reference/02-components/form.md:160`, que lo afirma para el componente
+`<Form>` de Next, no para una Server Action.
+
+Así que se midió, en Next 16.4.3, **con su control**:
+
+| caso | `onSubmit` | POST observados | acción ejecutada |
+|---|---|---|---|
+| con `preventDefault()` | corrió | **0** | **no** |
+| control, sin `preventDefault()` | corrió | 1, con cabecera `Next-Action` | **sí** |
+
+El control era imprescindible. Sin el segundo caso, "no pasó nada" también
+habría sido el resultado de un montaje donde la acción nunca funciona, y la
+conclusión habría sido la correcta por casualidad.
+
+**Si hubiera salido al revés** el plan era un `<noscript>` con su propio
+formulario, para no depender de una semántica que la documentación no afirma. No
+hizo falta, y con eso se evitó el problema que ese camino traía: dos formularios
+con los mismos campos, que es la duplicación que este proyecto corrige en todos
+lados.
+
+#### Y el input tampoco es controlado
+
+Los tres campos van con `defaultValue` y sin `value`, igual que el medidor. Por
+eso el conteo de **componentes controlados sigue en cero** aun con dos
+componentes de cliente: el valor de cada campo lo sigue teniendo el navegador, y
+el `useState` guarda el estado del **envío**, no el del campo.
+
 ---
 
 ## 6. Qué se pierde
@@ -269,9 +352,9 @@ decidir nada.
 
 | Qué se pierde | Cuánto importa acá |
 |---|---|
-| **El estado "cargando"** | Es la pérdida real, §4.3. Durante una consulta lenta no hay ninguna señal. Y no es inherente a la arquitectura: `loading.jsx` lo arregla sin JavaScript de cliente |
-| **La validación mientras se escribe** | Un formulario controlado puede decir "ese correo ya está en uso" antes de enviar. Acá hay que enviar y volver con `?error=`. El `pattern` y el `required` del navegador cubren la forma del dato, no su disponibilidad |
-| **El envío sin recargar** | Cada acción es un POST con redirección. Se pierde el scroll, hay un repintado completo. Un `fetch` lo haría en el lugar. Es el canje directo de la mejora progresiva |
+| ~~**El estado "cargando"**~~ | **Ya no se pierde**, §4.3: cinco `loading.jsx`, sin una línea de JavaScript de cliente. Queda tachado acá a propósito, en vez de borrado: era la pérdida real de la primera versión de este documento y conviene que se vea que se cerró |
+| **La validación mientras se escribe** | Un formulario controlado puede decir "ese correo ya está en uso" antes de enviar. En las ocho pantallas que no son el contacto hay que enviar y volver con `?error=`. El `pattern` y el `required` del navegador cubren la forma del dato, no su disponibilidad. **El formulario de contacto es la excepción**: valida con el esquema de Zod en el cliente, y es parte de lo que el módulo 6 pedía |
+| **El envío sin recargar** | Cada acción es un POST con redirección: se pierde el scroll y hay un repintado completo. **Salvo el formulario de contacto**, que con JavaScript envía por `fetch` y no navega — y sin JavaScript hace exactamente lo que hacen las demás. Esa es la forma de tenerlo sin perder la mejora progresiva, y cuesta un componente de cliente por formulario |
 | **La respuesta inmediata al clic** | Sin JavaScript no hay forma de deshabilitar el botón mientras el servidor trabaja, así que un doble clic manda dos POST. En las reservas **no hace daño, y lo que lo impide es la base**: `reservas` tiene `unique (user_id, clase_id)` —migración 001, línea 80— así que la segunda inserción no entra y la transacción vuelve atrás sin consumir el crédito. En `/admin/creditos` **sí hace daño**: ahí no hay restricción equivalente, un doble clic otorga dos veces, y hoy eso solo se arregla desde el editor SQL. Está en la deuda conocida de `CLAUDE.md` |
 | **Una interacción rica** | Un calendario que se despliega, arrastrar para reordenar, un filtro que responde a cada tecla. Nada de eso se puede hacer así, y nada de eso lo pide este sitio |
 | **Lo que el servidor hace en cada pedido** | El header consulta `perfiles` para cada persona con sesión. Un cliente lo pediría una vez y lo guardaría. Está mitigado con `cache()` dentro del pedido, no entre pedidos |
@@ -344,8 +427,11 @@ nadie recuerda.
 Si alguien evalúa el módulo 7 buscando `useState` y `useEffect`, va a encontrar
 uno y ninguno. El orden que conviene:
 
-1. **`useState` y `onChange` están implementados**, en
-   `app/components/CampoDeContrasena.jsx`, con el patrón completo de la clase.
+1. **`useState`, `onChange`, `onSubmit` y `fetch` están implementados**, con el
+   patrón completo de la clase: el medidor de contraseña
+   (`CampoDeContrasena.jsx`) y el formulario de contacto
+   (`FormularioDeContacto.jsx`), que valida en el cliente, llama a la API y
+   muestra los tres estados de la petición.
 2. **En el resto del proyecto no están porque no harían falta**, y el reemplazo
    de cada uno está en la sección 2 de este documento.
 3. **La decisión se paga y se cobra.** Lo que se gana está medido —el sitio

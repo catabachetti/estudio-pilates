@@ -38,6 +38,9 @@ export default async function AdminLayout({ children }) {
               <li>
                 <Link href="/admin/creditos">Créditos</Link>
               </li>
+              <li>
+                <Link href="/admin/mensajes">Mensajes</Link>
+              </li>
             </ul>
           </nav>
         )}
