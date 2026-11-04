@@ -405,12 +405,22 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
 
 ## Deuda conocida
 
-- La compensación óptica de los títulos (`--compensacion` en `app/globals.css`)
-  depende de la **primera letra** del título, no de la página. El valor por
-  defecto (0.07em) sirve para las letras de asta recta (N, P, R, H, E). Hoy hay
-  dos overrides: `/contacto` porque empieza con C y `/terminos` porque empieza
-  con T. Si esos títulos cambian de nombre, el valor queda mal y nada lo avisa:
-  hay que volver a medir el borde visible del primer carácter.
+- La compensación óptica de los títulos depende de la **primera letra** del
+  título, no de la página. El valor por defecto (0.07em) sirve para las letras
+  de asta recta (N, P, R, H, E).
+
+  **`--compensacion` no se declara en `app/globals.css`:** ahí solo se consume,
+  con `var(--compensacion, 0.07em)`. Las dos líneas del CSS que parecen
+  declararla están dentro de un comentario. Los overrides reales son un **estilo
+  en línea pasado como prop** a `EncabezadoPagina`.
+
+  Hoy hay **tres**, no dos: `/contacto` y `/compra/listo` con `0.02em` —las dos
+  empiezan con C— y `/terminos` con `-0.01em`. El tercero entró con Mercado
+  Pago, en el módulo 12, y esta nota siguió diciendo dos hasta la auditoría de
+  los módulos 6 y 7. **Eso es exactamente el riesgo que esta deuda describe:**
+  cada título nuevo que empiece con una letra curva es un override nuevo que
+  nadie recuerda. Si un título cambia de nombre, el valor queda mal y nada lo
+  avisa: hay que volver a medir el borde visible del primer carácter.
 
 - **Los códigos de estado del 403 no son 403.** Una página sin permiso devuelve
   200 con un mensaje, y una Server Action rechazada por `exigirAdmin()` devuelve

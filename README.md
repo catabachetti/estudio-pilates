@@ -32,14 +32,23 @@ es una ruta, y el archivo `page.jsx` que contiene es lo que la hace
 navegable.
 
 Los componentes son Server Components por defecto. Se renderizan en el
-servidor y no envían JavaScript al cliente. La landing y el catálogo
-funcionan así.
+servidor y no envían JavaScript al cliente.
 
-La directiva `'use client'` se usa solo donde hay interactividad real:
-el formulario de reserva, el buscador y el carrito.
+**Hay una sola directiva `'use client'` en todo el proyecto**, y es el medidor
+de fortaleza de contraseña (`app/components/CampoDeContrasena.jsx`). Todo el
+resto —incluidos los formularios de reserva, de ingreso y del panel— son
+formularios HTML nativos que hacen POST a Server Actions.
 
-La ventaja concreta es que el HTML llega ya armado desde el servidor,
-lo que mejora el SEO y la velocidad de la primera carga.
+La consecuencia concreta: **el sitio funciona con JavaScript desactivado**, y
+eso está probado en los tres motores de navegador en
+`e2e/sin-javascript.spec.js`, incluida una reserva completa con su cancelación.
+El HTML llega armado desde el servidor, que además es lo que conviene para SEO
+y para la primera carga.
+
+Esa decisión es también la diferencia con lo que enseña el módulo de React: no
+hay `useEffect`, no hay componentes controlados y `useState` aparece una sola
+vez. **Dónde vive el estado que estaría en `useState`, y qué se pierde con esta
+decisión, está en [docs/arquitectura.md](docs/arquitectura.md).**
 
 ## Modelo de datos
 
