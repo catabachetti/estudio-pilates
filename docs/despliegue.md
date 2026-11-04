@@ -381,7 +381,7 @@ handler devuelve el 500 que corresponde.
 
 ### `e2e` — a mano, y por un motivo
 
-`if: github.event_name == 'workflow_dispatch'`. Las 67 pruebas de Playwright
+`if: github.event_name == 'workflow_dispatch'`. Las 76 pruebas de Playwright
 **escriben en la única base de datos que hay**: cada corrida crearía cuentas y
 reservas en la base del sitio. Lo que lo desbloquearía es un segundo proyecto de
 Supabase, que es una decisión aparte.

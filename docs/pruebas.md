@@ -46,11 +46,12 @@ están enumerados uno por uno en la sección 3.
 | **De integración contra la base** | `probar-reservas.sh` (6), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `validar-local.sh` (6 secciones) | 36 |
 | **De concurrencia** | `probar-reservas.sh`, con **dos transacciones reales** | 1, y es el que importa |
 | **De contrato con un tercero** | `probar-webhook.mjs` (13), `probar-webhook-dos-claves.sh` (8), `probar-preferencia.mjs` (3) | 24 |
-| **E2E de navegador** | `e2e/*.spec.js` | **67 en total: 65 pasan, 2 se saltean** |
+| **E2E de navegador** | `e2e/*.spec.js` | **76 en total: 74 pasan, 2 se saltean** |
 
 El total de E2E lo informa el propio corredor con `npx playwright test --list`.
-Los 67 no son 67 archivos de prueba: son 18 escenarios distintos, y los que no
-escriben en la base corren en los tres motores.
+Los 76 no son 76 archivos de prueba: son 19 escenarios distintos, y los que no
+escriben en la base corren en los tres motores. El total subió de 67 a 76 en el
+módulo 14, al agregarse E19: tres anchos por tres motores.
 
 **Las unitarias son pocas a propósito.** Las reglas del negocio de este
 proyecto no viven en funciones de JavaScript: viven en funciones de Postgres.
@@ -190,7 +191,7 @@ qué le pidieron, no.
 
 ### 3.7 Las pruebas E2E — `npm run test:e2e`
 
-65 pasan y 2 se saltean con motivo. Contra **el sitio compilado**, no `next
+74 pasan y 2 se saltean con motivo. Contra **el sitio compilado**, no `next
 dev`: lo recomienda la guía de la versión instalada y es como se verificó todo
 el resto del proyecto.
 
@@ -214,6 +215,24 @@ el resto del proyecto.
 | E16 | **sin JS** | Cuenta con 1 crédito | Reservar y cancelar | Funciona entero. *Se saltea en WebKit* |
 | E17 | **sin JS** | — | Abrir `/registro` | El campo trae `minLength`, `pattern`, la lista de reglas y el `<meter>` quieto |
 | E18 | **sin JS** | — | Completar el registro | **La cuenta se crea** |
+| E19 | anónimo | — | Abrir `/paquetes` a 1280, 1024 y 900px y medir los botones COMPRAR | Los botones de una misma fila **arrancan a la misma altura**, con menos de 0,5px de diferencia |
+
+**Sobre E19, que es la única prueba geométrica de la suite.** Afirma una
+relación —los botones de una fila arrancan a la misma altura— y no una imagen.
+Una comparación de capturas falla cuando cambia una tipografía o un color, que
+no es lo que se quiere saber, y no falla si el bug vuelve en un ancho que la
+captura no cubre.
+
+Los tres anchos no son decorativos: la grilla pasa de cuatro a dos columnas en
+`max-width: 900px`, así que 900 ya es dos columnas, y **cuál tarjeta descoloca
+depende del ancho** —medido, a 1280 es "8 clases" y a 900 pasa a ser "1 clase"—.
+
+Y **no** se prueba lo mismo en la home ni en `/clases`, a propósito. En la home
+las cuatro tarjetas tienen el mismo contenido, así que los botones alinean
+*aunque la regla no esté*: medido, neutralizándola la diferencia sigue en 0. Una
+prueba ahí pasaría por el motivo equivocado, que es el tipo (a) de la sección 2.
+En `/clases` hay un solo enlace por fila, así que no hay dos que puedan
+desalinearse: sería una comprobación que no puede fallar, el tipo (c).
 
 ---
 
@@ -476,6 +495,28 @@ navegaciones— con el motivo escrito y aclarando que no es un reintento
 disfrazado. **Queda dicha y no explicada**, que es más honesto que taparla. Si
 vuelve, se investiga con la traza.
 
+**Y hubo un "pasa a veces" de verdad, encontrado en el módulo 14 y arreglado.**
+E2 —el circuito de `volver`— pedía el día por defecto de `/reservar`, que es
+**hoy**. La página oculta los turnos que ya pasaron, así que después de la
+última clase del día la tabla de hoy queda vacía: sin turnos, sin "lista de
+espera" y sin el aviso de agenda agotada, porque la agenda no está agotada.
+
+Medido: un martes a las **23:34**, con las siete clases del día (07 a 20) ya
+pasadas, E2 fallaba **en los tres motores**. El mismo día a otra hora pasaba. No
+era un bug del sitio ni de la prueba: era una **precondición no declarada**, y
+la escondía la hora a la que uno corriera la suite.
+
+El arreglo no fue fijar un día ni reintentar: la prueba **recorre la tira de
+días**, que la página arma solo con los días que tienen clases, hasta encontrar
+uno que ofrezca reservar, y si ninguno lo ofrece falla diciendo que es la
+precondición y no el circuito de `volver`. Verificado a las 23:35, o sea en la
+condición exacta que la rompía: 74 pasan, 2 se saltean.
+
+Lo que esto confirma sobre `retries: 0`: con un reintento, esta prueba habría
+fallado y vuelto a fallar —no es intermitente dentro de una corrida, es
+dependiente de la hora— así que el reintento no la habría tapado. Lo que la
+tapaba era correr la suite siempre de día.
+
 ### 6.6 Codegen y Trace Viewer
 
 La diapositiva 16: `codegen` graba clics y los traduce a código; el Trace Viewer
@@ -732,7 +773,8 @@ de una comprobación que no puede fallar.
 | **La escritura del catálogo desde el panel** | Modificaría `paquetes`, que el sitio muestra. Hay un solo proyecto de Supabase. Se prueban las **lecturas** del formulario |
 | **El `Site URL` de Supabase** | Ninguna API lo expone. La única comprobación posible es mirar el panel |
 | **Ingresar en WebKit contra el sitio local** | La cookie `Secure` sobre http. Ver 6.4 |
-| **Integración continua** | No hay `.github/workflows`. A días de la entrega, una suite que corre a mano y **se vio fallar** vale más que un CI que nadie mira. Es lo siguiente |
+| **Comparación visual de capturas** | E19 prueba una relación geométrica, no la apariencia. Un cambio de color, de tipografía o de espaciado no lo detecta nada automático: eso sigue siendo testing exploratorio, sección 5 |
+| **Integración continua** | Ya no: el módulo 14 agregó `.github/workflows/ci.yml`, y el argumento de que no hacía falta **estaba mal** —era cierto de un CI decorativo, no de uno que bloquea el merge—. Las E2E son lo único que **no** corre ahí, porque escriben en la única base que hay: van en un job manual. Ver `docs/despliegue.md` |
 | **Cobertura** | Ver sección 2 |
 
 ---

@@ -1333,6 +1333,115 @@ Hoy "Lista de espera" en `/reservar` es un enlace de WhatsApp. El README decía
 eso desde septiembre, y de paso tenía cinco de seis entregables sin tildar
 estando los seis hechos.
 
+## 2026-11-03 — Un desalineado que venía del módulo de pagos
+
+**Prompt:** en `/paquetes` los botones COMPRAR no quedan alineados: la tarjeta
+de "8 clases" tiene una línea más de descripción y su botón baja. Anclarlo al
+pie, verificar con `getBoundingClientRect()` a 1280, 1024 y 900, y fijarse si el
+mismo problema existe en la home y en `/clases`.
+
+### La causa estaba a dos módulos de distancia
+
+`margin-top: auto` tiene que ir en el **hijo directo** del contenedor flex. La
+regla que ya existía está en `.paquete .boton`, y **funciona en la home**,
+porque ahí la tarjeta termina en un `<a class="boton">`.
+
+En `/paquetes` no funciona, y el motivo no tiene nada que ver con el diseño: el
+botón va envuelto en un **`<form>`**. Uno por paquete. Y ese form existe porque
+la compra es un POST a una Server Action, que es **lo que hace que comprar
+funcione con JavaScript apagado** —la decisión central del módulo 12—. El hijo
+del flex es el form, así que el `auto` del botón empujaba dentro de él, donde no
+hay alto de sobra.
+
+**Una decisión del módulo de pagos produciendo un desalineado visual dos meses
+después, en una pantalla que nadie había tocado.** No fue un error de nadie: el
+form es correcto y la regla del botón era correcta cuando se escribió, para el
+único caso que existía entonces. Lo que falló es que **la forma del HTML cambió
+y la regla de CSS siguió apuntando al elemento de antes.**
+
+Lo que queda de método: cuando una regla depende de la **posición** de un
+elemento en el árbol —`> `, `:last-child`, `margin: auto` en un flex—, envolver
+ese elemento en cualquier cosa la desactiva **en silencio**. No hay error de
+consola, no hay clase que falte, no hay nada en el diff del día que lo rompió:
+el commit que agregó el form no tocó una línea de CSS.
+
+### Lo que NO hubo que arreglar, y vale no atribuírselo
+
+El pedido incluía "las tarjetas de la fila con la misma altura". **Eso ya
+pasaba**, y lo da el `align-items: stretch` por defecto de la grilla. Medido con
+la regla nueva neutralizada: `322, 322, 322, 322` a 1280px, diferencia 0.
+
+Lo único roto era dónde caía el botón **dentro** de ese alto. Decirlo importa:
+un arreglo que se atribuye algo que ya funcionaba deja a quien lea el commit
+creyendo que la igualdad de altura depende de la regla nueva, y el día que
+alguien cambie la grilla no va a saber qué está sosteniendo qué.
+
+### Dónde hace falta la regla depende del ancho
+
+Midiendo el alto del texto variable por fila:
+
+| ancho | columnas | la tarjeta que descoloca |
+| --- | --- | --- |
+| 1280 | 4 | "8 clases" (73px contra 49) |
+| 1024 | 4 | "8 clases" (98px contra 73) |
+| 900 | 2 | **"1 clase"** (24px contra 49) |
+| 700 | 2 | ninguna: las dos filas tienen alturas iguales |
+
+Por eso el arreglo va en la regla y no en una tarjeta: **cuál se descoloca
+cambia con el ancho**, así que "bajarle un margen a la de 8 clases" habría
+arreglado 1280 y roto 900.
+
+### El problema no existía en las otras dos pantallas, y una de las dos razones es interesante
+
+En **`/clases`** no puede existir: son filas de foto + datos, con un enlace cada
+una. No hay dos que puedan desalinearse.
+
+En **la home** tampoco, pero **no porque la regla la salve**: las cuatro
+tarjetas tienen el mismo contenido —nombre, precio y vigencia, sin descripción
+variable— así que los botones alinean *aunque la regla no esté*. Medido,
+neutralizando el `margin-top: auto`: la diferencia sigue en 0.
+
+Eso decidió el alcance de la prueba nueva. **Una prueba de alineación en la home
+pasaría hoy por el motivo equivocado**, que es el tipo (a) de la clasificación
+del módulo 13: una comprobación que mide otra cosa. Y en `/clases` sería el tipo
+(c): una que no puede fallar. Así que E19 prueba **solo** `/paquetes`, y el
+motivo de las otras dos quedó escrito en el propio archivo de la prueba.
+
+### Y la prueba nueva encontró una prueba vieja que dependía de la hora
+
+Al correr la suite completa fallaron **tres** pruebas, y ninguna era la nueva:
+era E2 —el circuito de `volver`— en los tres motores.
+
+La causa: E2 pedía `/reservar` sin día, o sea **hoy**, y la página oculta los
+turnos que ya pasaron. Eran las **23:34**, y las siete clases del día (07 a 20)
+ya habían pasado, así que la tabla de hoy estaba vacía: sin turnos, sin "lista
+de espera" y sin el aviso de agenda agotada, porque la agenda no estaba agotada.
+
+**El mismo día a otra hora, pasaba.** Era una precondición no declarada, y lo
+que la escondía era correr la suite siempre de día.
+
+Lo que se hizo, y lo que no:
+
+- **No** se fijó un día concreto, que la rompería cuando la agenda avance.
+- **No** se puso un reintento. Y acá hay algo que vale notar: un reintento **no
+  la habría tapado**, porque no es intermitente dentro de una corrida — a esa
+  hora falla siempre. Lo que la tapaba no era la falta de `retries: 0`, era el
+  horario de trabajo.
+- Se hizo que la prueba **recorra la tira de días**, que la página arma solo con
+  los días que tienen clases, hasta encontrar uno que ofrezca reservar. Y si
+  ninguno lo ofrece, falla diciendo que es la precondición —agenda agotada o
+  clases completas— y no el circuito de `volver`.
+
+Verificado a las 23:35, en la condición exacta que la rompía: 74 pasan, 2 se
+saltean.
+
+### Y la contraprueba de la prueba nueva
+
+Se neutralizó la regla y se corrió: las nueve fallan, con el mensaje que nombra
+el archivo y la regla, y señalando cuál botón se corre —el tercero a 1280 y
+1024, el primero a 900, que es exactamente lo que la medición había anticipado—.
+Restaurada, las nueve pasan en los tres motores.
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título
