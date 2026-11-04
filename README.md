@@ -93,7 +93,7 @@ el sitio están listadas en [docs/despliegue.md](docs/despliegue.md) §5.
 
 ```bash
 npm test             # lint y las tres pruebas de nodo: lo mismo que el CI
-npm run test:e2e     # las 67 pruebas de Playwright, en tres navegadores
+npm run test:e2e     # las 76 pruebas de Playwright, en tres navegadores
 zsh supabase/validar-local.sh    # el esquema, RLS y el seed en un Postgres descartable
 ```
 
