@@ -453,6 +453,22 @@ button.header-enlace {
   padding: 12px 16px;
 }
 
+/* EL `margin-top: auto` TIENE QUE IR EN EL HIJO DIRECTO DE LA TARJETA, y el de
+   arriba solo alcanza cuando el boton es ese hijo directo. Pasa en la home,
+   donde la tarjeta termina en un <a class="boton">.
+   En /paquetes no: el boton va envuelto en un <form> —uno por paquete, porque
+   es un POST a una Server Action y es lo que hace que la compra funcione sin
+   JavaScript— asi que el hijo del flex es el form. El `auto` del boton empujaba
+   DENTRO del form, que no tiene alto de sobra, y no movia nada. El sintoma era
+   que la tarjeta con una linea mas de descripcion dejaba su boton mas abajo que
+   las otras tres.
+   El `width: 100%` hace falta porque .paquete tiene `align-items: flex-start`,
+   que encoge a los hijos al ancho de su contenido. */
+.paquete > form {
+  margin-top: auto;
+  width: 100%;
+}
+
 /* ---------- reservas ---------- */
 
 .seccion-clara {
