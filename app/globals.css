@@ -1336,6 +1336,38 @@ a.tira-dia-elegido:hover {
   margin-left: calc(var(--compensacion, 0.07em) * -1);
 }
 
+/* ---------- mensajes recibidos (panel) ---------- */
+
+.mensajes-lista {
+  display: grid;
+  gap: 20px;
+  margin-top: 32px;
+  list-style: none;
+}
+
+.mensaje-recibido {
+  padding: 20px 24px;
+  border: 1px solid var(--arena);
+  background-color: var(--blanco);
+}
+
+.mensaje-recibido-de {
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+
+.mensaje-recibido-fecha {
+  font-size: 0.85rem;
+  color: var(--gris);
+  margin-block: 4px 12px;
+}
+
+/* pre-line y no nowrap: quien escribio puso saltos de linea a proposito y
+   perderlos cambia el texto. Las lineas largas siguen ajustandose solas. */
+.mensaje-recibido-texto {
+  white-space: pre-line;
+}
+
 .lista-simple {
   list-style: none;
   display: grid;

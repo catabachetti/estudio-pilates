@@ -1442,6 +1442,65 @@ el archivo y la regla, y señalando cuál botón se corre —el tercero a 1280 y
 1024, el primero a 900, que es exactamente lo que la medición había anticipado—.
 Restaurada, las nueve pasan en los tres motores.
 
+## 2026-11-04 — Tres documentos que mentían, por el mismo motivo
+
+**Prompt:** auditoría contra los módulos 6 y 7 del curso, y el documento que
+explica por qué el proyecto no tiene `useState`.
+
+La auditoría encontró lo que buscaba —los números del módulo 7 y los cuatro
+puntos del módulo 6, todos confirmados— pero el hallazgo que vale está en otro
+lado: **en una sola sesión aparecieron tres documentos afirmando cosas falsas**,
+y los tres por la misma razón.
+
+| Documento | Qué afirmaba | Desde cuándo era falso |
+| --- | --- | --- |
+| `README.md` | que en lista de espera "entran automáticamente cuando alguien cancela" | septiembre. La tabla `lista_espera` existe con sus políticas, pero ninguna pantalla le escribe y no hay promoción automática en ninguna función ni disparador |
+| `CLAUDE.md` | *"No hay CI, y es una decisión"* | el día que se mergeó el módulo 14, dos horas antes |
+| `README.md` | que `'use client'` se usa en *"el formulario de reserva, el buscador y el carrito"* | septiembre. **No existe ningún buscador ni ningún carrito**, y el formulario de reserva no es un componente de cliente |
+
+Y un cuarto, más chico, en la deuda conocida: `CLAUDE.md` decía que había **dos**
+overrides de `--compensacion` y hay **tres**. El tercero entró con Mercado Pago.
+
+### La lección
+
+**Las descripciones de arquitectura se desactualizan más rápido que la
+arquitectura.**
+
+El motivo es mecánico y conviene nombrarlo: **nada las compila ni las prueba.**
+Un comentario que miente sobre una línea de código se descubre leyendo esa
+línea. Una afirmación de arquitectura —"usamos `'use client'` para el carrito"—
+no está al lado de nada; no hay archivo que la contradiga a la vista, no hay
+test que la ejecute, y el `grep` que la desmiente solo se corre si alguien
+sospecha.
+
+Por eso las tres aparecieron recién cuando se buscó algo **distinto**: dos
+salieron auditando otro módulo, y la de CI salió porque el archivo se releyó por
+otra razón.
+
+### Qué se hace con eso
+
+Lo que **no** sirve: prometer "revisar la documentación de vez en cuando". Eso
+es exactamente lo que falló durante dos meses.
+
+Lo que sí, y es lo que este proyecto ya hace en otros lados: **que la afirmación
+traiga el comando que la comprueba.** `docs/arquitectura.md` no dice "no hay
+`useEffect`": dice `grep -rn "useEffect" app/  # 0`. Esa forma se puede volver a
+correr, y el día que deje de dar 0 el documento se delata solo.
+
+La versión fuerte de la misma idea ya existía y no se había generalizado:
+`docs/pruebas.md` dice que sus números *"salen de contar el código, no de
+estimar"*, y `probar-esquemas.mjs` **comprueba** que el esquema use la constante
+exportada y no un número que casualmente coincide. Es la diferencia entre un
+documento que describe y uno que **afirma algo falsificable**.
+
+**Y el límite, que también hay que decirlo:** eso sirve para lo contable —cuántos
+`useState`, qué tabla lee qué pantalla— y no sirve para lo interpretativo. "El
+medidor es un agregado y no una dependencia" no tiene un `grep` que lo pruebe.
+Lo más cerca que se llegó es una prueba E2E que lo mide: con JavaScript apagado,
+el `<meter>` no se mueve y el registro crea la cuenta igual. **Convertir una
+afirmación de arquitectura en un caso de prueba es el único antídoto que
+funcionó**, y es caro, así que no se puede hacer con todas.
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título

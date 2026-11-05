@@ -798,6 +798,7 @@ zsh supabase/probar-acreditacion.sh
 zsh supabase/probar-limpieza.sh
 zsh supabase/probar-agenda-agotada.sh
 zsh supabase/probar-extender-agenda.sh
+zsh supabase/probar-mensajes.sh
 
 # contrato con Mercado Pago
 MP_WEBHOOK_SECRET=cualquier-cosa npx next start -p 3001 &

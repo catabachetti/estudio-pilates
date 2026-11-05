@@ -13,7 +13,9 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 - Server Components por defecto. Solo usar 'use client' donde haya
   interactividad real (useState, onClick, useEffect).
 
-  **Hay una sola excepción en el proyecto y es `app/components/CampoDeContrasena.jsx`.**
+  **Hay dos excepciones en el proyecto, y la segunda se justifica distinto.**
+
+  **Primera: `app/components/CampoDeContrasena.jsx`.**
   El módulo 10 pide un indicador visual de fortaleza de contraseña, y
   *fortaleza* implica grados: una versión con CSS puro puede decir "falta algo"
   pero no "débil / bien / muy buena", porque un input tiene un solo `pattern`.
@@ -26,9 +28,30 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   lo único que se pierde es la barra moviéndose. Verificado: con JavaScript
   desactivado en el navegador, el registro se completa y crea la cuenta.
 
-  Si aparece otro caso que parezca necesitar `'use client'`, no alcanza con
-  citar este: hay que demostrar primero que no se puede con CSS, y que lo que
-  se agrega no es funcional.
+  **Segunda: `app/components/FormularioDeContacto.jsx`.** El módulo 6 del curso
+  pide un formulario con DOM dinámico, validación y `fetch`, y los tres estados
+  de una petición en curso no se pueden mostrar con CSS.
+
+  **Pero acá la segunda mitad de la regla NO se cumple sola: el `fetch` es
+  funcional.** Es el camino por el que se manda el mensaje. Lo que hace
+  admisible la excepción es que el `<form>` lleve también un `action` a una
+  Server Action, así que sin JavaScript el navegador lo postea y el mensaje se
+  guarda igual. Con eso el camino funcional es el formulario nativo y el `fetch`
+  vuelve a ser un agregado.
+
+  **El respaldo no es un extra: es la condición.** Si deja de funcionar, el
+  componente no corresponde, y la prueba que lo vigila es el caso 18 de
+  `e2e/sin-javascript.spec.js`.
+
+  Que los dos puedan convivir está **medido**, con su control: `preventDefault()`
+  en `onSubmit` impide que React ejecute el `action` en Next 16.4.3, y el mismo
+  formulario sin `preventDefault` sí lo ejecuta. La documentación instalada no
+  lo afirma para `action`, solo para el componente `<Form>`. Está en
+  `docs/arquitectura.md` §5.2.
+
+  Si aparece un tercer caso, no alcanza con citar ninguno de los dos: hay que
+  demostrar que no se puede con CSS, y **o** que lo que se agrega no es
+  funcional, **o** que hay un respaldo sin JavaScript que sí lo es.
 - HTML semántico y accesible: labels asociados, alt en imágenes,
   jerarquía de encabezados correcta.
 - Next 16: `params` es una Promise, se usa con await.
@@ -342,6 +365,30 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   regresión.** Si la lista se leyera del código, agregar una pantalla sin
   protegerla la agregaría también a la prueba y la prueba pasaría.
 
+## Mensajes de contacto
+
+- **`mensajes` no tiene política de INSERT.** Es a propósito, igual que
+  `reservas`, `creditos` e `intentos_ingreso`: la clave publishable viaja al
+  navegador, así que una política de INSERT para anónimos sería una invitación a
+  llenar la tabla con un `curl` en un bucle. La única puerta es
+  `enviar_mensaje()`, que tiene el límite adentro.
+- **El límite es por correo, cinco por hora, y no por IP.** Limitar por IP frena
+  mejor a un bot pero exige **guardar** la IP de cada persona que escribe, y
+  este proyecto ya rechazó guardar datos sensibles de más cuando descartó el
+  historial de contraseñas. El correo ya está en la fila.
+  *Lo que ese límite no hace:* frenar a quien varíe el correo en cada envío.
+  Frena el doble clic y el bot perezoso. Lo único que cerraría esa puerta es un
+  CAPTCHA, descartado a propósito (ver `docs/seguridad.md`).
+- **Los largos están en dos lados que no se pueden importar entre sí:**
+  `app/lib/esquemas.js` y la función de la migración 014. Es la única
+  duplicación conocida del proyecto, y lo que impide que se separen es el caso 8
+  de `supabase/probar-mensajes.sh`, que **lee las constantes del archivo de
+  JavaScript** y prueba la función en los bordes. Si cambia uno de los dos, ese
+  arnés falla.
+- **`/privacidad` menciona los mensajes de contacto.** Si algún día se empieza a
+  guardar la IP o cualquier dato nuevo, esa página tiene que decirlo: hoy afirma
+  textualmente que no se guarda la dirección IP.
+
 ## Qué revalidar después de escribir
 
 - **Paquetes** → `/paquetes` y `/`.
@@ -405,12 +452,22 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
 
 ## Deuda conocida
 
-- La compensación óptica de los títulos (`--compensacion` en `app/globals.css`)
-  depende de la **primera letra** del título, no de la página. El valor por
-  defecto (0.07em) sirve para las letras de asta recta (N, P, R, H, E). Hoy hay
-  dos overrides: `/contacto` porque empieza con C y `/terminos` porque empieza
-  con T. Si esos títulos cambian de nombre, el valor queda mal y nada lo avisa:
-  hay que volver a medir el borde visible del primer carácter.
+- La compensación óptica de los títulos depende de la **primera letra** del
+  título, no de la página. El valor por defecto (0.07em) sirve para las letras
+  de asta recta (N, P, R, H, E).
+
+  **`--compensacion` no se declara en `app/globals.css`:** ahí solo se consume,
+  con `var(--compensacion, 0.07em)`. Las dos líneas del CSS que parecen
+  declararla están dentro de un comentario. Los overrides reales son un **estilo
+  en línea pasado como prop** a `EncabezadoPagina`.
+
+  Hoy hay **tres**, no dos: `/contacto` y `/compra/listo` con `0.02em` —las dos
+  empiezan con C— y `/terminos` con `-0.01em`. El tercero entró con Mercado
+  Pago, en el módulo 12, y esta nota siguió diciendo dos hasta la auditoría de
+  los módulos 6 y 7. **Eso es exactamente el riesgo que esta deuda describe:**
+  cada título nuevo que empiece con una letra curva es un override nuevo que
+  nadie recuerda. Si un título cambia de nombre, el valor queda mal y nada lo
+  avisa: hay que volver a medir el borde visible del primer carácter.
 
 - **Los códigos de estado del 403 no son 403.** Una página sin permiso devuelve
   200 con un mensaje, y una Server Action rechazada por `exigirAdmin()` devuelve

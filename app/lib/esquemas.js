@@ -84,6 +84,22 @@ export const EnteroNoNegativo = z.coerce
 export const LARGO_NOMBRE = 60
 export const LARGO_INCLUYE = 200
 
+// Los largos del formulario de contacto. Van acá, exportados, porque los piden
+// CUATRO lugares y tienen que coincidir: el esquema de abajo, los atributos
+// `minLength` y `maxLength` del formulario, la Server Action y la función
+// `enviar_mensaje()` de la migración 014. Es el mismo problema que tuvieron
+// LARGO_NOMBRE y LARGO_INCLUYE cuando estaban escritos a mano en cuatro
+// archivos: el día que uno cambia, el formulario deja escribir y el servidor
+// rechaza sin que nadie entienda por qué.
+//
+// La función de Postgres no puede importar esto, así que ahí los números están
+// repetidos. Eso es una duplicación real y conocida: lo que la contiene es que
+// `supabase/probar-mensajes.sh` comprueba que los dos lados pidan lo mismo.
+export const MINIMO_NOMBRE_CONTACTO = 2
+export const LARGO_NOMBRE_CONTACTO = 80
+export const MINIMO_MENSAJE = 10
+export const LARGO_MENSAJE = 1000
+
 export const Texto = (max, etiqueta = 'Este campo') =>
   z
     .string()
@@ -149,6 +165,34 @@ export const EdicionDePaquete = z.object({
   dias_vigencia: EnteroPositivo,
   incluye: TextoOpcional(LARGO_INCLUYE),
   orden: EnteroNoNegativo,
+})
+
+// EL FORMULARIO DE CONTACTO, y es el único esquema que además viaja al
+// navegador: lo importa `app/components/FormularioDeContacto.jsx`, que es un
+// componente de cliente, para validar antes de enviar.
+//
+// Que sea el MISMO objeto el que valida en los tres lugares —el navegador, la
+// Server Action y el Route Handler— es lo que hace que los tres acepten
+// exactamente lo mismo. Si el navegador validara con una regla propia, habría
+// mensajes que el formulario deja pasar y la API rechaza.
+export const MensajeDeContacto = z.object({
+  nombre: z
+    .string()
+    .trim()
+    .min(MINIMO_NOMBRE_CONTACTO, { error: 'Poné tu nombre.' })
+    .max(LARGO_NOMBRE_CONTACTO, {
+      error: `El nombre no puede pasar de ${LARGO_NOMBRE_CONTACTO} caracteres.`,
+    }),
+  email: Email,
+  mensaje: z
+    .string()
+    .trim()
+    .min(MINIMO_MENSAJE, {
+      error: `Contanos un poco más: al menos ${MINIMO_MENSAJE} caracteres.`,
+    })
+    .max(LARGO_MENSAJE, {
+      error: `El mensaje no puede pasar de ${LARGO_MENSAJE} caracteres.`,
+    }),
 })
 
 // ---------------------------------------------------------------------------

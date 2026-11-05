@@ -30,12 +30,19 @@ demás si no se contesta. **Un endpoint documentado como ejercicio es
 información honesta; uno presentado como pieza de arquitectura cuando nadie lo
 llama es decorado.**
 
-**Hoy nada del proyecto llama a `/api/v1`.** No es una impresión, se mide:
+**Hoy la llama una sola pantalla, y hasta el módulo 6 del curso no la llamaba
+ninguna.** No es una impresión, se mide:
 
 ```
 grep -rn "api/v1" app --include='*.js' --include='*.jsx' | grep -v '^app/api/'
-# (sin resultados)
+# app/components/FormularioDeContacto.jsx:79:  await fetch('/api/v1/mensajes', {
+# (las otras dos coincidencias son comentarios que la nombran)
 ```
+
+**Ese `fetch` es el único**, y existe porque el formulario de contacto necesita
+mostrar los tres estados de una petición en curso sin navegar. El resto de la
+API sigue siendo el ejercicio que esta sección declara, y eso no cambió: once de
+los doce endpoints no tienen consumidor propio.
 
 Y el motivo no es un olvido: las páginas son Server Components y leen los
 datos **llamando a las funciones directamente**, no por HTTP.
@@ -60,6 +67,7 @@ Entonces, con nombre y apellido:
 | `GET /clases`, `GET /clases/{id}`, `GET /paquetes` | nadie | un cliente que no sea este sitio: una app, un script, una pantalla en el estudio |
 | `GET /reservas`, `POST /reservas`, `PATCH /reservas/{id}`, `GET /creditos` | nadie | lo mismo, con sesión |
 | `POST /clases`, `PATCH /clases/{id}`, `GET /clases/{id}/reservas` | nadie | lo mismo, con rol de administración |
+| `POST /mensajes` | **el formulario de `/contacto`** | lo mismo. Es el primero de esta API con un consumidor propio de verdad |
 | **`POST /api/webhooks/mercadopago`** | **Mercado Pago, de verdad** | — |
 
 O sea: **`/salud` tiene un consumidor real pendiente de configurar, los otros
@@ -171,10 +179,10 @@ una convención, y por eso se comprueba contando:
 ```
 grep -rhoE 'export (const|async function) (GET|POST|PATCH|PUT|DELETE)' app/api/v1 | wc -l
 grep -rhoE 'export const (GET|POST|PATCH|PUT|DELETE) = manejador\(' app/api/v1 | wc -l
-# 11 y 11
+# 12 y 12
 ```
 
-Los dos números tienen que ser iguales. Hoy son 11 y 11.
+Los dos números tienen que ser iguales. Hoy son 12 y 12: el que entró en el módulo 6 del curso es `POST /api/v1/mensajes`.
 
 ---
 
@@ -321,6 +329,7 @@ repetir el desafío lo invitaría a reintentar lo mismo.
 | `POST /reservas` | sesión | `{clase_id}` | 201 + `Location` |
 | `PATCH /reservas/{id}` | sesión | `{"estado":"cancelada"}` | si el crédito volvió o se perdió |
 | `GET /creditos` | sesión | — | el resumen de créditos de quien llama |
+| `POST /mensajes` | **público** | `nombre`, `email`, `mensaje` | 201 `{enviado:true}`. **429 + `Retry-After`** si ya van cinco de ese correo en la última hora |
 
 `GET /clases/{id}/reservas` es el **recurso anidado**: las reservas de una
 clase no tienen sentido sin la clase, y la URL lo dice. Es de administración

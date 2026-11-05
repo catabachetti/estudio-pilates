@@ -21,6 +21,11 @@ export default function PrivacidadPage() {
           de la compra y el identificador que nos devuelve Mercado Pago. No
           almacenamos datos de tarjetas en ningún momento.
         </p>
+        <p>
+          Si nos escribís por el formulario de contacto guardamos tu nombre, tu
+          correo y el mensaje, para poder responderte. No hace falta tener cuenta
+          para escribirnos, y no guardamos tu dirección IP.
+        </p>
 
         <h2>Para qué los usamos</h2>
         <p>

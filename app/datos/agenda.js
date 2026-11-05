@@ -60,6 +60,22 @@ export function textoDeFecha(clave) {
   return `${DIAS[f.getDay()]} ${f.getDate()} de ${MESES[f.getMonth()]}`
 }
 
+// Un `timestamptz` de la base en texto legible, en la zona del estudio. Vive
+// acá y no en la pantalla del panel por lo mismo que `sinSegundos`: la ZONA de
+// arriba es la única del proyecto, y si cada pantalla la escribiera de nuevo,
+// un día una mostraría la hora de UTC.
+export function fechaYHoraDelEstudio(iso) {
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: ZONA,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(new Date(iso))
+}
+
 // La base devuelve "07:00:00" y en pantalla se lee mejor "7:00". Vive acá,
 // con el resto del formato de fechas y horas, porque lo usan la grilla pública
 // y el panel: la forma de escribir una hora se decide en un solo lugar.

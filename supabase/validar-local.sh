@@ -114,8 +114,8 @@ begin
   -- Este numero se actualiza a mano a proposito: si una migracion agrega una
   -- tabla, la validacion falla hasta que alguien mire si esa tabla necesita RLS
   -- y politicas. Es un despertador, no una molestia.
-  if cuantas <> 12 then
-    raise exception 'FALLA: se esperaban 12 tablas y hay %. Si agregaste una, revisa que tenga RLS y politicas y actualiza este numero.', cuantas;
+  if cuantas <> 13 then
+    raise exception 'FALLA: se esperaban 13 tablas y hay %. Si agregaste una, revisa que tenga RLS y politicas y actualiza este numero.', cuantas;
   end if;
   if sin_rls is not null then
     raise exception 'FALLA: estas tablas quedaron sin RLS: %', sin_rls;
@@ -124,7 +124,7 @@ begin
     raise exception 'FALLA: estas tablas no tienen ninguna politica: %', sin_politicas;
   end if;
 
-  raise notice 'OK: las 12 tablas tienen RLS activa, y las que no tienen politicas es porque estan cerradas a proposito';
+  raise notice 'OK: las 13 tablas tienen RLS activa, y las que no tienen politicas es porque estan cerradas a proposito';
 end $$;
 SQL
 

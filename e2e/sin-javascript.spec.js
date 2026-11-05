@@ -230,3 +230,48 @@ test.describe('el medidor de contraseña: la única excepción', () => {
     await supabase(`/auth/v1/admin/users/${creada.id}`, { method: 'DELETE' })
   })
 })
+
+test.describe('el formulario de contacto: la condición de la segunda excepción', () => {
+  // Caso 18. LA PRUEBA QUE HABILITA AL COMPONENTE DE CLIENTE.
+  //
+  // `FormularioDeContacto.jsx` es el segundo `'use client'` del proyecto, y su
+  // `fetch` **es funcional**: es el camino por el que se manda el mensaje. Eso
+  // no alcanza para la regla de CLAUDE.md, que pide que lo que se agrega no sea
+  // funcional.
+  //
+  // Lo que hace admisible la excepción es que el respaldo sin JavaScript
+  // funcione: con el `action` puesto, el camino funcional es el formulario
+  // nativo y el `fetch` vuelve a ser un agregado. **El respaldo no es un extra,
+  // es la condición.** Si esta prueba falla, el componente no corresponde.
+  test('sin JavaScript el mensaje se guarda igual', async ({ page, browserName }) => {
+    test.slow()
+
+    const email = `e2e-sinjs-${browserName}-${Math.random()
+      .toString(36)
+      .slice(2, 10)}@ejemplo-de-prueba.invalid`
+
+    await page.goto('/contacto')
+
+    await page.getByLabel('Nombre').fill('Prueba Sin JavaScript')
+    await page.getByLabel('Correo electrónico').fill(email)
+    await page
+      .getByLabel('Mensaje')
+      .fill('Escribo sin JavaScript para comprobar que el respaldo funciona.')
+    await page.getByRole('button', { name: 'Enviar mensaje' }).click()
+
+    // El navegador posteó el formulario a la Server Action, que redirige con el
+    // resultado en la URL. Ese es el único canal que queda sin JavaScript.
+    await expect(page).toHaveURL(/\/contacto\?m=ok/)
+    await expect(page.getByRole('status')).toContainText(/recibimos tu mensaje/)
+
+    // Y llegó a la base, que es lo que de verdad importa.
+    const filas = await supabase(
+      `/rest/v1/mensajes?select=nombre&email=eq.${encodeURIComponent(email)}`
+    )
+    expect(filas, `el envío sin JavaScript no guardó el mensaje de ${email}`).toHaveLength(1)
+
+    await supabase(`/rest/v1/mensajes?email=eq.${encodeURIComponent(email)}`, {
+      method: 'DELETE',
+    })
+  })
+})

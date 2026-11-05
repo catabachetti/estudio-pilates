@@ -32,14 +32,23 @@ es una ruta, y el archivo `page.jsx` que contiene es lo que la hace
 navegable.
 
 Los componentes son Server Components por defecto. Se renderizan en el
-servidor y no envían JavaScript al cliente. La landing y el catálogo
-funcionan así.
+servidor y no envían JavaScript al cliente.
 
-La directiva `'use client'` se usa solo donde hay interactividad real:
-el formulario de reserva, el buscador y el carrito.
+**Hay una sola directiva `'use client'` en todo el proyecto**, y es el medidor
+de fortaleza de contraseña (`app/components/CampoDeContrasena.jsx`). Todo el
+resto —incluidos los formularios de reserva, de ingreso y del panel— son
+formularios HTML nativos que hacen POST a Server Actions.
 
-La ventaja concreta es que el HTML llega ya armado desde el servidor,
-lo que mejora el SEO y la velocidad de la primera carga.
+La consecuencia concreta: **el sitio funciona con JavaScript desactivado**, y
+eso está probado en los tres motores de navegador en
+`e2e/sin-javascript.spec.js`, incluida una reserva completa con su cancelación.
+El HTML llega armado desde el servidor, que además es lo que conviene para SEO
+y para la primera carga.
+
+Esa decisión es también la diferencia con lo que enseña el módulo de React: no
+hay `useEffect`, no hay componentes controlados y `useState` aparece una sola
+vez. **Dónde vive el estado que estaría en `useState`, y qué se pierde con esta
+decisión, está en [docs/arquitectura.md](docs/arquitectura.md).**
 
 ## Modelo de datos
 
@@ -69,17 +78,22 @@ lo que mejora el SEO y la velocidad de la primera carga.
 | [x] | Repositorio y control de versiones | |
 | [x] | E1 — CI/CD y preview por PR | [docs/despliegue.md](docs/despliegue.md) |
 | [x] | E2 — Landing semántica y responsive | |
-| [x] | E3 — Formularios con validación | [docs/seguridad.md](docs/seguridad.md) |
+| [x] | E3 — Formularios dinámicos con validación y `fetch` | [docs/arquitectura.md](docs/arquitectura.md) |
 | [x] | E4 — Catálogo navegable y API interna | [docs/api.md](docs/api.md) |
 | [x] | E5 — CRUD en Supabase y panel de administración | [docs/seguridad.md](docs/seguridad.md) |
 | [x] | E6 — Checkout y webhook de Mercado Pago | [docs/api.md](docs/api.md) |
 
-Una aclaración sobre E3: los formularios **no** usan `fetch`. Usan Server
-Actions, así que el sitio funciona con JavaScript desactivado, y eso está
-probado en los tres motores de navegador — ver
-[docs/pruebas.md](docs/pruebas.md). La única excepción de `'use client'` del
-proyecto es el medidor de fortaleza de contraseña, que es un agregado y no una
-dependencia.
+Una aclaración sobre E3, porque el proyecto hace las dos cosas: **el formulario
+de contacto usa `fetch`** y muestra los tres estados de la petición, y **los
+demás usan Server Actions**, que es lo que hace que el sitio funcione con
+JavaScript desactivado — probado en los tres motores de navegador, ver
+[docs/pruebas.md](docs/pruebas.md).
+
+El de contacto también funciona sin JavaScript, y eso no es un detalle: su
+`<form>` lleva un `action` de respaldo, y **ese respaldo es la condición** que
+hace admisible que sea uno de los dos únicos componentes de cliente del
+proyecto. El razonamiento completo está en
+[docs/arquitectura.md](docs/arquitectura.md) §5.
 
 ## Desarrollo local
 

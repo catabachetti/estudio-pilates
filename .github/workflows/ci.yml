@@ -139,6 +139,14 @@ jobs:
       - name: extender la agenda sin pisar el catálogo
         run: zsh supabase/probar-extender-agenda.sh
 
+      # El caso 8 de este arnés es el que vigila la única duplicación conocida
+      # del proyecto: los largos del mensaje de contacto viven en
+      # app/lib/esquemas.js y en la función de la migración 014, que no se
+      # pueden importar entre sí. Lee las constantes del archivo de JavaScript y
+      # prueba la función en los bordes.
+      - name: el formulario de contacto, RLS y el límite por correo
+        run: zsh supabase/probar-mensajes.sh
+
   # ---------------------------------------------------------------------------
   webhook:
     name: contrato con Mercado Pago
