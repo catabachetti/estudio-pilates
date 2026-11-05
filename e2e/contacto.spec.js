@@ -50,6 +50,12 @@ test.describe('el formulario de contacto', () => {
 
     await page.goto('/contacto')
 
+    // Los avisos se buscan DENTRO de la región del formulario. `getByRole`
+    // suelto encuentra además el `__next-route-announcer__` de Next, que es un
+    // `div role="alert"` vacío: con dos coincidencias, Playwright corta por
+    // modo estricto. Scoping en vez de `.first()`, que dependería del orden.
+    const formulario = page.getByRole('region', { name: 'Escribinos' })
+
     const nombre = page.getByLabel('Nombre')
     const correo = page.getByLabel('Correo electrónico')
     const mensaje = page.getByLabel('Mensaje')
@@ -75,7 +81,7 @@ test.describe('el formulario de contacto', () => {
     // enviando
     await expect(page.getByRole('button', { name: /Enviando/ })).toBeVisible()
     // listo
-    await expect(page.getByRole('status')).toContainText(/recibimos tu mensaje/)
+    await expect(formulario.getByRole('status')).toContainText(/recibimos tu mensaje/)
     // y el campo quedó limpio, que es lo que dice que el envío terminó
     await expect(mensaje).toHaveValue('')
 
@@ -116,7 +122,9 @@ test.describe('el formulario de contacto', () => {
     await page.getByLabel('Mensaje').fill('Un mensaje que el servidor va a rechazar.')
     await page.getByRole('button', { name: 'Enviar mensaje' }).click()
 
-    await expect(page.getByRole('alert')).toContainText(/Algo falló/)
+    await expect(
+      page.getByRole('region', { name: 'Escribinos' }).getByRole('alert')
+    ).toContainText(/Algo falló/)
 
     // LO QUE SE ESCRIBIO NO SE PIERDE, que es la diferencia con una navegación:
     // si el envío falla, el texto sigue en el campo para reintentar.

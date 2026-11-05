@@ -1501,6 +1501,94 @@ el `<meter>` no se mueve y el registro crea la cuenta igual. **Convertir una
 afirmación de arquitectura en un caso de prueba es el único antídoto que
 funcionó**, y es caro, así que no se puede hacer con todas.
 
+## 2026-11-05 — E3, y dos afirmaciones mías que la medición dio vuelta
+
+**Prompt:** el formulario de contacto del módulo 6 con `fetch`, el checklist de
+PRs, los `loading.jsx`, y una auditoría contra la rúbrica.
+
+Lo que salió del día no fue el formulario —ese salió como estaba planeado— sino
+**dos cosas que afirmé y que resultaron falsas al medirlas**, una de cada tipo.
+
+### La primera: afirmar sin correr la consulta
+
+Escribí en la auditoría que la **regla de protección de rama no estaba
+configurada**. Estaba configurada desde el 3 de noviembre.
+
+Y lo importante no es el error, es su forma. **No fue falta de acceso**: el dato
+se lee sin autenticación, en una línea.
+
+```sh
+curl -s ".../repos/catabachetti/estudio-pilates/branches/main" | grep protected
+# "protected": true
+```
+
+Es la cuarta afirmación no medida de la semana que resulta falsa —las otras tres
+están en la entrada del 4 de noviembre— y **la única de las cuatro donde el
+comando que la desmentía estaba a un `curl` de distancia.** Las otras tres
+necesitaban un clon limpio, esconder un binario del `PATH` o un control con una
+segunda corrida. Esta no necesitaba nada.
+
+Lo que la hizo pasar: la había dado por pendiente porque **yo mismo había dicho
+que era tarea de otra persona**, y nunca volví a preguntar. Una tarea delegada no
+es una tarea sin hacer, y la diferencia se comprueba igual que todo lo demás.
+
+### La segunda: "no agrega JavaScript de cliente" era cierto y engañoso
+
+Los cinco `loading.jsx` cerraban la deuda del estado "cargando", y el argumento
+era bueno: `loading.jsx` es el equivalente de servidor, no manda una línea de
+JavaScript al navegador, así que la arquitectura del proyecto **no obligaba** a
+renunciar a ese estado.
+
+Todo eso es cierto. **Y los archivos rompían el sitio sin JavaScript.**
+
+Con un `loading.jsx`, Next **transmite** la respuesta: manda el armazón con el
+"Cargando…" y después el contenido real, que un `<script>` en línea inserta.
+Medido con una ruta demorada 1,5 segundos a propósito:
+
+| | al cargar | a los 4 segundos |
+| --- | --- | --- |
+| JavaScript prendido | "Cargando…" | el contenido llegó |
+| JavaScript apagado | "Cargando…" | **el contenido NO llegó** |
+
+Cambia "no hay señal mientras espera" por "nunca se ve el contenido". Peor que
+el problema que venía a resolver.
+
+**La distinción que me faltaba:** un cambio puede no agregar JavaScript de
+cliente y aun así hacer que el contenido **dependa** de que haya alguno. Las dos
+cosas no son lo mismo, y yo las traté como si lo fueran.
+
+### Y cómo apareció: la suite completa, no una revisión
+
+Las pruebas se corrieron de a una y pasaron. Las 83 juntas dieron **15 fallas**,
+nueve de ellas en E19 —que mide la alineación de unos botones y no carga datos—.
+
+El motivo es que el `<Suspense>` **solo se activa cuando los datos tardan**. De a
+una la base contesta rápido y no se activa nunca; con 83 pruebas golpeándola, se
+activa. Sacando los cinco archivos, las fallas pasaron de 15 a 1.
+
+**La que quedó era otra y también real:** un `click()` sobre un formulario
+seguido de un `goto` inmediato, que cancela el POST en vuelo. Aislada pasaba.
+
+Tres hallazgos de la semana —la hora del día en E2, el streaming, y esta
+carrera— tienen la misma propiedad: **ninguno es un error de lógica, y ninguno
+aparece corriendo las pruebas de a una.** Aparecen por interacción o por carga.
+"Pasa aislada" es evidencia de que pasa aislada.
+
+### Lo que sí salió derecho
+
+El formulario, y vale anotar una cosa que no esperaba: **ni el único componente
+nuevo de cliente usa un componente controlado.** Los tres campos van con
+`defaultValue`, así que el conteo de componentes controlados del proyecto sigue
+en cero con tres `'use client'`. El `useState` guarda el estado del **envío**, no
+el del campo — y eso es lo que permite que el mismo formulario funcione sin
+JavaScript.
+
+Y la tercera excepción, `app/error.jsx`, que obligó a escribir una tercera rama
+de la regla: no es "lo que se agrega no es funcional" ni "hay un respaldo
+nativo", es **"sin JavaScript no se pierde nada porque ya no había nada"**.
+Medido: el HTML de un error 500 es un `<body>` con un `<div hidden>`, con o sin
+el archivo.
+
 ## Plantilla
 
 ### AAAA-MM-DD — Título

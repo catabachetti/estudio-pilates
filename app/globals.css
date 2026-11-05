@@ -1336,6 +1336,15 @@ a.tira-dia-elegido:hover {
   margin-left: calc(var(--compensacion, 0.07em) * -1);
 }
 
+/* Los dos botones del aviso de error, en fila y bajando a columna en pantalla
+   angosta. */
+.aviso-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
 /* ---------- mensajes recibidos (panel) ---------- */
 
 .mensajes-lista {

@@ -158,6 +158,11 @@ test.describe('reservar sin JavaScript', () => {
     await page.goto(`/reservar?dia=${clase.fecha}`)
     await page.getByRole('button', { name: /^Reservar / }).first().click()
 
+    // El mismo freno que en cliente.spec.js: el click es una navegación y un
+    // `goto` inmediato puede cancelar el POST. Acá además no hay JavaScript,
+    // así que la navegación la hace el navegador y no el router de Next.
+    await expect(page).toHaveURL(/r=ok/)
+
     await page.goto('/cuenta')
     await expect(page.getByRole('heading', { name: 'Próximas clases' })).toBeVisible()
 

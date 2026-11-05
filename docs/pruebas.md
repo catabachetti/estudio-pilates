@@ -43,15 +43,16 @@ están enumerados uno por uno en la sección 3.
 | Tipo | Dónde | Cuántas |
 |---|---|---|
 | **Unitarias** | `probar-contrasena.mjs` (22 casos en su tabla), `probar-esquemas.mjs` (11 aserciones), `probar-agenda.mjs` (3 escenarios, 17 aserciones) | 22 + 14 |
-| **De integración contra la base** | `probar-reservas.sh` (6), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `validar-local.sh` (6 secciones) | 36 |
+| **De integración contra la base** | `probar-reservas.sh` (6), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `probar-mensajes.sh` (8 secciones), `validar-local.sh` (6 secciones) | 44 |
 | **De concurrencia** | `probar-reservas.sh`, con **dos transacciones reales** | 1, y es el que importa |
 | **De contrato con un tercero** | `probar-webhook.mjs` (13), `probar-webhook-dos-claves.sh` (8), `probar-preferencia.mjs` (3) | 24 |
-| **E2E de navegador** | `e2e/*.spec.js` | **76 en total: 74 pasan, 2 se saltean** |
+| **E2E de navegador** | `e2e/*.spec.js` | **83 en total: 81 pasan, 2 se saltean** |
 
 El total de E2E lo informa el propio corredor con `npx playwright test --list`.
-Los 76 no son 76 archivos de prueba: son 19 escenarios distintos, y los que no
-escriben en la base corren en los tres motores. El total subió de 67 a 76 en el
-módulo 14, al agregarse E19: tres anchos por tres motores.
+Los 83 no son 83 archivos de prueba: son 22 escenarios distintos, y los que no
+escriben en la base corren en los tres motores. El total fue 67 → 76 (E19, tres
+anchos por tres motores) → 83 (el formulario de contacto y la sexta pantalla del
+panel).
 
 **Las unitarias son pocas a propósito.** Las reglas del negocio de este
 proyecto no viven en funciones de JavaScript: viven en funciones de Postgres.
@@ -191,7 +192,7 @@ qué le pidieron, no.
 
 ### 3.7 Las pruebas E2E — `npm run test:e2e`
 
-74 pasan y 2 se saltean con motivo. Contra **el sitio compilado**, no `next
+81 pasan y 2 se saltean con motivo. Contra **el sitio compilado**, no `next
 dev`: lo recomienda la guía de la versión instalada y es como se verificó todo
 el resto del proyecto.
 
@@ -206,16 +207,19 @@ el resto del proyecto.
 | E7 | cliente | Cuenta sin créditos | Intentar reservar | `?r=sin_creditos` y el bloque "Te faltan créditos" con enlace a paquetes |
 | E8 | cliente | ídem | Clic en "Comprar el paquete de …" | **Sale del sitio hacia `mercadopago.com`** con el id de la preferencia |
 | E9 | cliente | Cuenta con 1 crédito y una clase con lugar a +2 días | Reservar, mirar la cuenta, cancelar | Aparece en "Próximas clases"; al cancelar dice **crédito devuelto** |
-| E10 | **cliente** | Cuenta sin rol admin | Pedir las **cinco** pantallas del panel | **"Sin permiso"** en las cinco, y **no** redirige: es el **403** |
-| E11 | admin | Credenciales en `.env.local` | Pedir las cinco pantallas | Cargan con su título, y el header ofrece el atajo "Panel" |
+| E10 | **cliente** | Cuenta sin rol admin | Pedir las **seis** pantallas del panel | **"Sin permiso"** en las seis, y **no** redirige: es el **403** |
+| E11 | admin | Credenciales en `.env.local` | Pedir las seis pantallas | Cargan con su título, y el header ofrece el atajo "Panel" |
 | E12 | admin | — | Crear una clase por API y mirar `/reservar` | Aparece en la agenda pública; al borrarla, desaparece |
 | E13 | admin | — | Abrir `/admin/paquetes` | Los campos traen los valores de la base, con `maxLength` 60 |
 | E14 | **sin JS** | — | Escribir una contraseña fuerte en `/registro` | **El medidor no se mueve**: es el detector de que JavaScript está apagado |
-| E15 | **sin JS** | Cuenta nueva | Ingresar por el formulario | Abre sesión. *Se saltea en WebKit: ver 6.3* |
+| E15 | **sin JS** | Cuenta nueva | Ingresar por el formulario | Abre sesión. *Se saltea en WebKit: ver 6.4* |
 | E16 | **sin JS** | Cuenta con 1 crédito | Reservar y cancelar | Funciona entero. *Se saltea en WebKit* |
 | E17 | **sin JS** | — | Abrir `/registro` | El campo trae `minLength`, `pattern`, la lista de reglas y el `<meter>` quieto |
 | E18 | **sin JS** | — | Completar el registro | **La cuenta se crea** |
 | E19 | anónimo | — | Abrir `/paquetes` a 1280, 1024 y 900px y medir los botones COMPRAR | Los botones de una misma fila **arrancan a la misma altura**, con menos de 0,5px de diferencia |
+| E20 | anónimo | — | En `/contacto`: enviar con el mensaje corto, corregirlo y enviar | El error por campo aparece **sin salir a la red**; después se ven los tres estados, va **un** POST a `/api/v1/mensajes`, **ninguno** a la Server Action, y la base tiene **una** fila |
+| E21 | anónimo | La API responde 500 (forzado con `page.route`) | Enviar el formulario | Aparece el aviso de error **y el texto escrito no se pierde** |
+| E22 | **sin JS** | — | Enviar el formulario de contacto | Redirige a `?m=ok` y **el mensaje llega a la base**. Es la prueba que **habilita** al componente de cliente: ver 6.6 |
 
 **Sobre E19, que es la única prueba geométrica de la suite.** Afirma una
 relación —los botones de una fila arrancan a la misma altura— y no una imagen.
@@ -517,7 +521,57 @@ fallado y vuelto a fallar —no es intermitente dentro de una corrida, es
 dependiente de la hora— así que el reintento no la habría tapado. Lo que la
 tapaba era correr la suite siempre de día.
 
-### 6.6 Codegen y Trace Viewer
+**Y hubo un tercero, que es el más instructivo: 15 fallas de las cuales 14
+venían de un solo cambio que ninguna prueba aislada detectaba.**
+
+Se agregaron cinco `loading.jsx`. Corridas de a una, todas las pruebas pasaban.
+Las 83 juntas dieron **15 fallas**, entre ellas nueve de E19 —que mide
+alineación de botones y no carga datos— y tres de la navegación sin JavaScript.
+
+El motivo: con un `loading.jsx`, Next **transmite** la respuesta y el contenido
+real llega por un `<script>` que lo inserta. Y el `<Suspense>` **solo se activa
+cuando los datos tardan**. De a una las consultas son rápidas y no se activa
+nunca; con 83 pruebas golpeando la misma base, tarda, se activa, y sin
+JavaScript el contenido no llega nunca. Medido aparte, con una ruta demorada 1,5
+segundos a propósito: con JavaScript el contenido llega, sin JavaScript la
+página se queda en "Cargando…" para siempre.
+
+Sacando los cinco archivos las fallas pasaron de 15 a 1. **La que quedó era otra
+cosa y también real:** `cliente.spec.js` hacía `click()` sobre un formulario y
+**acto seguido** `goto('/cuenta')`, y una navegación nueva puede cancelar el POST
+en vuelo. Aislada pasaba; bajo carga el POST tardaba más y la reserva no llegaba
+a existir. Arreglado esperando el `?r=ok` antes de navegar, que además afirma que
+la acción salió bien.
+
+**Las tres cosas que esto deja escritas:**
+
+1. **Una suite que solo se corre por partes no puede encontrar esta clase de
+   error.** Los tres hallazgos —la hora del día, el streaming, la carrera del
+   click— aparecen por interacción o por carga, no por lógica.
+2. **"Pasa aislada" no es evidencia de que pase.** Es evidencia de que pasa
+   aislada.
+3. **Un cambio que no agrega JavaScript de cliente puede igual romper el
+   funcionamiento sin JavaScript.** `loading.jsx` no agrega una línea al
+   navegador; hace que el contenido **dependa** de que haya alguna.
+
+### 6.6 La prueba que habilita a un componente
+
+E22 no es una prueba más de la lista: es **la condición** de que
+`FormularioDeContacto.jsx` pueda existir.
+
+El razonamiento, que está en `docs/arquitectura.md` §5.2: ese componente es uno
+de los tres `'use client'` del proyecto, y su `fetch` **es funcional** —es el
+camino por el que se manda el mensaje—. La regla del proyecto pide que lo que se
+agrega con `'use client'` no sea funcional, o que haya un respaldo sin JavaScript
+que sí lo sea. Acá lo que la salva es lo segundo: el `<form>` lleva un `action` a
+una Server Action.
+
+**Si E22 falla, el componente no corresponde.** No es que haya un bug que
+arreglar: es que desaparece el argumento por el que ese archivo está permitido.
+Vale decirlo porque es el único caso de la suite donde una prueba en rojo no
+pide arreglar código sino **revisar una decisión de arquitectura**.
+
+### 6.7 Codegen y Trace Viewer
 
 La diapositiva 16: `codegen` graba clics y los traduce a código; el Trace Viewer
 graba capturas antes y después de cada acción, el DOM y la red.
