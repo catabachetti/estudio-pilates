@@ -162,6 +162,14 @@ test.describe('reservar y cancelar', () => {
       await expect(reservar.first()).toBeVisible()
       await reservar.first().click()
 
+      // SE ESPERA EL REDIRECT ANTES DE NAVEGAR, y no es una precaución
+      // genérica: el click envía un formulario, o sea una navegación, y un
+      // `goto` inmediato puede CANCELAR ese POST en vuelo. Aislada la prueba
+      // pasaba; en la suite completa, con la base más cargada, el POST tardaba
+      // más y la reserva no llegaba a existir. Esperar el `?r=ok` además afirma
+      // que la acción salió bien, que es información que antes no se pedía.
+      await expect(paginaCliente).toHaveURL(/r=ok/)
+
       // La reserva aparece en la cuenta. Esto es lo que ninguna prueba de base
       // de datos puede ver: que la pantalla muestre lo que la base guardó.
       await paginaCliente.goto('/cuenta')

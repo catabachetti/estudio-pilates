@@ -102,9 +102,21 @@ export default function FormularioDeContacto() {
 
   const enviando = estado === 'enviando'
 
+  // `aria-labelledby` en la sección la convierte en una REGION con nombre
+  // accesible, y eso sirve para dos cosas a la vez: un lector de pantalla la
+  // puede anunciar y saltar a ella, y las pruebas pueden buscar el aviso
+  // ADENTRO de esta región en vez de en toda la página.
+  //
+  // Lo segundo hizo falta: `getByRole('alert')` a secas también encuentra el
+  // `__next-route-announcer__` que Next inyecta para anunciar los cambios de
+  // ruta, así que la prueba del estado de error chocaba con dos elementos. Solo
+  // pasa con JavaScript —sin él ese anunciador no existe— y por eso las pruebas
+  // de sin-javascript.spec.js nunca lo vieron.
   return (
-    <section id="contacto">
-      <h2 className="bloque-titulo">Escribinos</h2>
+    <section id="contacto" aria-labelledby="contacto-titulo">
+      <h2 className="bloque-titulo" id="contacto-titulo">
+        Escribinos
+      </h2>
 
       {/* LOS TRES ESTADOS. `role="status"` para los que informan y
           `role="alert"` para el que interrumpe, que es el mismo criterio que

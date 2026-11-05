@@ -20,7 +20,7 @@ al lado de cada uno.
 ## 1. Los números, primero
 
 ```sh
-grep -rn "useEffect" app/                      # 0
+grep -rnE 'useEffect\(' app/                   # 0  (a secas da 2: ver abajo)
 grep -rn "= useState(" app/                    # 4
 grep -rn "fetch(" app/                         # 1
 grep -rn "localStorage\|sessionStorage" app/   # 0
@@ -30,25 +30,29 @@ grep -rnE '\balert\(|\bconfirm\(|\bprompt\(' app/   # 0
 
 | | Cuántos | Dónde |
 |---|---|---|
-| Directivas `'use client'` | **2** | `CampoDeContrasena.jsx` y `FormularioDeContacto.jsx` |
+| Directivas `'use client'` | **3** | `CampoDeContrasena.jsx`, `FormularioDeContacto.jsx` y `app/error.jsx` |
 | Llamadas a `useState` | **4** | 1 en el medidor, 3 en el formulario de contacto |
 | Llamadas a `useEffect` | **0** | — |
 | Componentes controlados | **0** | — |
 | Llamadas a `fetch` | **1** | `FormularioDeContacto.jsx:79`, a `POST /api/v1/mensajes` |
 | Otros hooks de cliente | **0** | ni `useRef`, ni `useReducer`, ni `useContext`, ni `useMemo`, ni `useCallback`, ni `useOptimistic`, ni `useFormStatus`, ni `useTransition` |
 | Directivas `'use server'` | **8** | los ocho archivos de `app/acciones/` |
-| Archivos `loading.jsx` | **5** | §4.3 |
+| Archivos `loading.jsx` | **0** | §4.3, y el motivo está medido |
 
-**Cuidado con dos greps que mienten, y mienten igual.**
+**Cuidado con tres greps que mienten, y mienten todos igual.**
 
-`grep -rn "'use client'" app/` da **siete** archivos y **cinco son
-comentarios**: los lugares donde el código explica por qué *no* lleva la
-directiva. Y `grep -rn "onSubmit" app/` da **tres** y **dos son comentarios**,
-por lo mismo.
+| grep | da | de verdad hay |
+|---|---|---|
+| `"'use client'"` | 7 archivos | **3 directivas**; los otros cuatro son comentarios que explican por qué *no* la llevan |
+| `"onSubmit"` | 3 | **1 atributo**; dos son comentarios |
+| `"useEffect"` | 2 | **0 llamadas**; las dos son comentarios de `app/error.jsx` explicando por qué no lo usa |
 
-En los dos casos el patrón es el mismo: en este proyecto los comentarios nombran
-mucho las cosas que **no** se hacen, así que contar coincidencias de texto da de
-más. Para contar directivas de verdad hay que mirar la primera línea:
+El patrón es siempre el mismo, y es una consecuencia del estilo de este
+proyecto: **los comentarios nombran mucho las cosas que no se hacen**, así que
+contar coincidencias de texto da de más. Por eso cada número de este documento
+viene con el grep **preciso**, no con el obvio.
+
+Para contar directivas de verdad hay que mirar la primera línea:
 
 ```sh
 for f in $(grep -rl "use client" app/); do
@@ -189,56 +193,103 @@ pantalla rota:
 El error además se registra del lado del servidor con `console.error`, así que
 queda en los logs de Vercel aunque la persona solo vea el mensaje amable.
 
-### 4.3 `loading` — existía como deuda y se cerró
+### 4.3 `loading` — no existe, y el intento de cerrarlo mostró por qué no es barato
 
 ```sh
-find app -name "loading.jsx" | wc -l     # 5
+find app -name "loading.jsx" | wc -l     # 0
 ```
 
-**Hasta el 4 de noviembre de 2026 este estado no existía**, y la primera versión
-de este documento lo anotó como la deuda más barata del proyecto. Se cerró.
+**Este documento afirmó dos cosas sucesivas sobre esto y las dos eran
+incompletas.** Conviene dejar el recorrido porque el resultado es lo más útil de
+toda la sección.
 
-Qué pasaba antes durante una consulta lenta: la persona veía **la página
-anterior**, con el indicador de carga del navegador, y nada más. Sin esqueleto,
-sin "cargando…". **Y hay un número que mide cuánto podía doler:** `/salud` tarda
-**7,0 segundos** en devolver su 503 cuando la base no responde, porque la
-consulta no tiene tiempo límite. Siete segundos sin ninguna señal.
+Primero dijo que el estado no existía y que era **la deuda más barata del
+proyecto**: cinco archivos, sin tocar lógica y sin agregar JavaScript de
+cliente. Después se escribieron los cinco y el documento los declaró cerrados.
 
-Ahora las cinco rutas que leen de Supabase tienen el suyo:
+**Y después se midió, y hubo que revertirlos.**
 
-```
-app/paquetes/loading.jsx
-app/clases/loading.jsx
-app/clases/[slug]/loading.jsx
-app/horarios/loading.jsx
-app/reservar/loading.jsx
-```
+#### Qué se pierde sin `loading.jsx`
 
-**Y lo que importa para el argumento de este documento: no agregan una línea de
-JavaScript al navegador.** `loading.jsx` es el equivalente de servidor del
-estado "cargando" — Next envuelve la ruta en un `<Suspense>` y manda ese HTML
-mientras el componente espera. O sea que **la decisión de arquitectura no
-obligaba a renunciar a este estado**; lo que faltaba era escribir cinco
-archivos. Que la deuda durara dos meses es un dato sobre el proyecto, no sobre
-Server Components.
+Durante una consulta lenta la persona ve **la página anterior**, con el
+indicador de carga del navegador, y nada más. Sin esqueleto, sin "cargando…". Y
+hay un número que mide cuánto puede doler: `/salud` tarda **7,0 segundos** en
+devolver su 503 cuando la base no responde, porque la consulta no tiene tiempo
+límite.
 
-### 4.4 Y tampoco hay `error.jsx`
+#### Y qué cuesta ponerlo, que es lo que no se había medido
 
-```sh
-ls app/error.jsx app/global-error.jsx    # ninguno de los dos
-```
+`loading.jsx` **no agrega una línea de JavaScript al navegador**, y eso es
+cierto. Lo que agrega es otra cosa: **hace que el contenido dependa de que el
+navegador ejecute JavaScript.**
+
+Cuando hay un `loading.jsx`, Next envuelve la ruta en un `<Suspense>` y
+**transmite** la respuesta: manda primero el armazón con el "Cargando…", y
+después el contenido real, que un `<script>` en línea inserta en su lugar. Sin
+JavaScript, ese script no corre.
+
+Medido con una ruta que tarda 1,5 segundos a propósito y su `loading.jsx`:
+
+| | al cargar | a los 4 segundos |
+|---|---|---|
+| JavaScript prendido | "Cargando…" | **el contenido llegó** |
+| JavaScript apagado | "Cargando…" | **el contenido NO llegó** |
+
+**Sin JavaScript la página se queda en "Cargando…" para siempre.** Eso es peor
+que el problema que venía a resolver: cambia "no hay señal mientras espera" por
+"nunca se ve el contenido".
+
+#### Cómo apareció, que es la parte que vale
+
+No lo encontró una revisión: lo encontró **la suite completa**. Los cinco
+archivos se escribieron, las pruebas se corrieron de a una y pasaron, y al
+correr las 83 juntas fallaron **15**, entre ellas nueve que no tienen nada que
+ver con cargar datos. El motivo: con la base más cargada las consultas tardan
+más, el `<Suspense>` se activa —y **solo se activa cuando los datos tardan**, no
+siempre— y las tres pruebas sin JavaScript vieron el "Cargando…" donde esperaban
+el contenido.
+
+Sacando los cinco archivos, las fallas pasaron de 15 a 1. La que quedó era otra
+cosa y también real: una carrera entre un `click()` y el `goto` siguiente.
+
+**Lo que esto enseña sobre el comportamiento dependiente del tiempo:** un
+`loading.jsx` no se ve en desarrollo, donde la base contesta rápido, ni en una
+prueba aislada. Se ve bajo carga. Una comprobación que solo corre de a una no
+puede encontrar esto, y la suite completa sí.
+
+#### Qué queda, entonces
+
+El estado "cargando" **sigue sin existir**, y ahora con el motivo medido en vez
+de anotado como pendiente. Lo que lo desbloquearía no es escribir los archivos:
+es decidir que el sitio puede dejar de funcionar sin JavaScript en las rutas
+lentas, que es la decisión que este proyecto viene tomando al revés desde
+septiembre.
+
+### 4.4 `error.jsx` sí existe, y es la tercera excepción
 
 Lo de 4.2 cubre el fallo **previsto**: la consulta devolvió `error` y la página
-lo mira. Una excepción **imprevista** en un componente de servidor no la agarra
-nada del proyecto: cae en la pantalla de error genérica de Next, sin el layout
-del sitio y sin el tono del resto.
+lo mira. Una excepción **imprevista** necesita otra cosa, y lo que había antes
+era la pantalla genérica de Next. Medido, con una ruta que revienta a propósito:
 
-El `app/not-found.jsx` sí es propio, y está en castellano con el layout del
-sitio. El de error no existe. Es la misma clase de deuda que 4.3.
+```
+THIS PAGE COULDN'T LOAD
+A server error occurred. Reload to try again.
+ERROR 1090
+```
+
+En inglés, sin el layout del sitio. Ahora hay `app/error.jsx`, en castellano,
+con el header y el pie, y mostrando el `error.digest` — que es el mismo
+mecanismo que la API ya usaba: un identificador que la persona puede pasar y que
+está en el registro del servidor.
+
+**Es un componente de cliente obligatoriamente**, y su argumento está en §5.3.
+No hay `global-error.jsx`: cubriría los errores del layout raíz, pero reemplaza
+el `<html>` entero, así que tendría que duplicar el layout. Queda afuera a
+propósito.
 
 ---
 
-## 5. Las dos excepciones
+## 5. Las tres excepciones
 
 ### 5.1 El medidor de contraseña
 
@@ -339,9 +390,47 @@ lados.
 #### Y el input tampoco es controlado
 
 Los tres campos van con `defaultValue` y sin `value`, igual que el medidor. Por
-eso el conteo de **componentes controlados sigue en cero** aun con dos
+eso el conteo de **componentes controlados sigue en cero** aun con tres
 componentes de cliente: el valor de cada campo lo sigue teniendo el navegador, y
 el `useState` guarda el estado del **envío**, no el del campo.
+
+### 5.3 `app/error.jsx`, y su argumento es el tercero
+
+**No hay opción.** La documentación de la versión instalada lo dice en ocho
+lugares de `03-api-reference/03-file-conventions/error.md`:
+
+> `'use client' // Error boundaries must be Client Components`
+
+Y no ofrece variante de servidor. `not-found.jsx` **sí** es un componente de
+servidor, y por eso el 404 propio se pudo hacer sin una línea de JavaScript.
+Este no.
+
+**Lo que se midió antes de escribirlo**, con una ruta que revienta y con su
+control:
+
+| | HTML servido, sin ejecutar JS | con JavaScript |
+|---|---|---|
+| sin `error.jsx` | 11.574 bytes, **ni una palabra visible** | `THIS PAGE COULDN'T LOAD … ERROR 1090` |
+| con `error.jsx` | 11.754 bytes, **ni una palabra visible** | la pantalla propia |
+
+El *error boundary* se renderiza **solo en el navegador**: el HTML de un 500 es
+un `<body>` con un `<div hidden>`, con o sin el archivo.
+
+**Y por eso su argumento no es ninguno de los dos anteriores.** No es "lo que se
+agrega no es funcional" como el medidor, ni "hay un respaldo nativo que sí lo
+es" como el formulario. Es un tercero:
+
+- **Sin JavaScript no se pierde nada**, porque la pantalla ya estaba vacía. El
+  archivo no empeora ese camino, lo deja igual.
+- **Nada de lo que una persona hace pasa por acá.** Solo se renderiza
+  **después** de que algo ya se rompió. No es una función, es una red.
+
+Las tres ramas de la regla están escritas en `CLAUDE.md`.
+
+**Un detalle que no lleva:** `useEffect`. El ejemplo de la documentación lo usa
+para registrar el error, y acá no haría falta — el error ya quedó en el registro
+del servidor con su `digest`, que es lo que la pantalla muestra. Sería una
+segunda copia del mismo dato, y el primer `useEffect` del proyecto.
 
 ---
 
@@ -352,7 +441,7 @@ decidir nada.
 
 | Qué se pierde | Cuánto importa acá |
 |---|---|
-| ~~**El estado "cargando"**~~ | **Ya no se pierde**, §4.3: cinco `loading.jsx`, sin una línea de JavaScript de cliente. Queda tachado acá a propósito, en vez de borrado: era la pérdida real de la primera versión de este documento y conviene que se vea que se cerró |
+| **El estado "cargando"** | Es la pérdida real, §4.3, y **no es barata de cerrar**: se escribieron los cinco `loading.jsx` y hubo que revertirlos, porque con `<Suspense>` el contenido llega por un `<script>` y sin JavaScript la página se queda en "Cargando…" para siempre. Medido |
 | **La validación mientras se escribe** | Un formulario controlado puede decir "ese correo ya está en uso" antes de enviar. En las ocho pantallas que no son el contacto hay que enviar y volver con `?error=`. El `pattern` y el `required` del navegador cubren la forma del dato, no su disponibilidad. **El formulario de contacto es la excepción**: valida con el esquema de Zod en el cliente, y es parte de lo que el módulo 6 pedía |
 | **El envío sin recargar** | Cada acción es un POST con redirección: se pierde el scroll y hay un repintado completo. **Salvo el formulario de contacto**, que con JavaScript envía por `fetch` y no navega — y sin JavaScript hace exactamente lo que hacen las demás. Esa es la forma de tenerlo sin perder la mejora progresiva, y cuesta un componente de cliente por formulario |
 | **La respuesta inmediata al clic** | Sin JavaScript no hay forma de deshabilitar el botón mientras el servidor trabaja, así que un doble clic manda dos POST. En las reservas **no hace daño, y lo que lo impide es la base**: `reservas` tiene `unique (user_id, clase_id)` —migración 001, línea 80— así que la segunda inserción no entra y la transacción vuelve atrás sin consumir el crédito. En `/admin/creditos` **sí hace daño**: ahí no hay restricción equivalente, un doble clic otorga dos veces, y hoy eso solo se arregla desde el editor SQL. Está en la deuda conocida de `CLAUDE.md` |

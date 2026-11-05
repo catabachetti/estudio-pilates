@@ -13,7 +13,7 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 - Server Components por defecto. Solo usar 'use client' donde haya
   interactividad real (useState, onClick, useEffect).
 
-  **Hay dos excepciones en el proyecto, y la segunda se justifica distinto.**
+  **Hay tres excepciones en el proyecto, y cada una se justifica distinto.**
 
   **Primera: `app/components/CampoDeContrasena.jsx`.**
   El módulo 10 pide un indicador visual de fortaleza de contraseña, y
@@ -49,9 +49,32 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   lo afirma para `action`, solo para el componente `<Form>`. Está en
   `docs/arquitectura.md` §5.2.
 
-  Si aparece un tercer caso, no alcanza con citar ninguno de los dos: hay que
-  demostrar que no se puede con CSS, y **o** que lo que se agrega no es
-  funcional, **o** que hay un respaldo sin JavaScript que sí lo es.
+  **Tercera: `app/error.jsx`.** La documentación de la versión instalada dice
+  en ocho lugares que *"Error boundaries must be Client Components"* y no ofrece
+  variante de servidor. `not-found.jsx` sí es de servidor, y por eso el 404
+  propio no necesitó JavaScript; este sí.
+
+  **Y su argumento no es ninguno de los dos anteriores.** Medido con una ruta
+  que revienta y con su control: el HTML de un 500 es un `<body>` con un
+  `<div hidden>` y **ni una palabra visible, con o sin el archivo**. O sea:
+
+  - **Sin JavaScript no se pierde nada**, porque la pantalla ya estaba vacía.
+  - **Nada de lo que una persona hace pasa por ahí:** solo se renderiza
+    **después** de que algo ya se rompió. No es una función, es una red.
+
+  Muestra el `error.digest`, que es el mismo mecanismo que la API: un
+  identificador que también queda en el registro. No lleva `useEffect` —el
+  ejemplo de la documentación lo usa para registrar, y el servidor ya registró—.
+
+  **Las tres ramas de la regla, para un cuarto caso.** Hay que demostrar que no
+  se puede con CSS, **y** una de estas tres:
+  1. que lo que se agrega no es funcional (el medidor);
+  2. que hay un respaldo sin JavaScript que sí lo es (el formulario);
+  3. que sin JavaScript no se pierde nada porque ya no había nada, y que nada
+     de lo que la persona hace pasa por ahí (el error boundary).
+
+  La tercera es la más fácil de usar mal: pide demostrar que el camino sin
+  JavaScript **ya estaba vacío**, no suponerlo.
 - HTML semántico y accesible: labels asociados, alt en imágenes,
   jerarquía de encabezados correcta.
 - Next 16: `params` es una Promise, se usa con await.
@@ -485,6 +508,25 @@ Lo que se decidió no hacer, para que no se confunda con un olvido.
   `unique (fecha, hora)` sigue valiendo para la fila cancelada, así que no se
   puede crear otra clase ese día a esa hora. Hay que reactivar esa. Es a
   propósito —esa fila tiene reservas colgando— pero sorprende si no se sabe.
+
+- **No hay estado "cargando", y `loading.jsx` NO es la solución barata que
+  parece.** Se escribieron cinco —`/paquetes`, `/clases`, `/clases/[slug]`,
+  `/horarios`, `/reservar`— y hubo que revertirlos.
+
+  El motivo, medido con una ruta que tarda 1,5 segundos a propósito: con un
+  `loading.jsx`, Next **transmite** la respuesta y el contenido real llega por un
+  `<script>` en línea que lo inserta. Sin JavaScript ese script no corre, así que
+  **la página se queda en "Cargando…" para siempre**. Cambia "no hay señal
+  mientras espera" por "nunca se ve el contenido", que es peor.
+
+  Y no lo encontró una revisión: lo encontró **la suite completa**. De a una las
+  pruebas pasaban; las 83 juntas dieron 15 fallas, nueve de ellas en pruebas que
+  no tienen nada que ver con cargar datos. El `<Suspense>` **solo se activa
+  cuando los datos tardan**, así que no se ve en desarrollo ni en una prueba
+  aislada: se ve bajo carga.
+
+  Lo que lo desbloquearía no es escribir los archivos, es decidir que el sitio
+  puede dejar de funcionar sin JavaScript en las rutas lentas.
 
 - **Hoy no hay caché de datos, y `revalidate = 3600` no hace nada.** Medido
   sobre el sitio compilado y servido con `next start`: una escritura hecha
