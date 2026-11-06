@@ -68,9 +68,18 @@ cargador de Turbopack acepta una sola.
 **Corrección:** se eliminaron las dos líneas `weight`. Build: `✓ Compiled
 successfully in 631ms`.
 
-**Predicción:**
+**Predicción:** Pensé que iba a salir de una. Era mover archivos de un lado a
+otro, no me parecía que hubiera nada que pudiera fallar.
 
-**Aprendizaje:**
+**Aprendizaje:** Falló en algo que yo no sabía que existía: las fuentes
+variables traen todos los pesos en un solo archivo, y declarar un array de
+pesos es para las que no lo son. Lo que me quedó no es el dato de las fuentes
+sino de dónde salió la respuesta: de la documentación de la versión instalada,
+dentro de `node_modules`, no de lo que el modelo recordaba. Las APIs cambian
+entre versiones y la que importa es la que está instalada. Y lo de Vercel fue
+la otra mitad: el código ya era Next y el sitio seguía compilando como Vite,
+porque la configuración de la plataforma no se entera de que cambiaste de
+framework.
 
 ---
 
@@ -164,9 +173,19 @@ El sitio usaba `+54 11 2233 4455`, que es un número de celular perfectamente
 válido de Buenos Aires y puede pertenecer a una persona real. Reemplazado por
 `+54 11 0000 0000`, que no existe.
 
-**Predicción:**
+**Predicción:** Más que esperar un fallo técnico, lo que me preocupaba era que
+no quedara profesional. Quería que las fotos fueran parte del diseño y no
+imágenes pegadas, sin divisiones que hicieran evidente que la había hecho una
+IA.
 
-**Aprendizaje:**
+**Aprendizaje:** Los dos problemas que aparecieron no eran los que yo vigilaba.
+Las fotos pesaban 145 MB y eso se arreglaba antes de commitear, porque git
+guarda todas las versiones para siempre y después ya no se libera nada. Y el
+otro fue peor: me reportó un desborde horizontal que no existía, con una
+explicación detallada y convincente. Lo había "medido" con capturas tomadas de
+una forma que no aplica el ancho al layout, solo recorta la imagen. Aprendí que
+una explicación coherente no es prueba de nada, y que la herramienta con la que
+medís puede estar mintiéndote.
 
 ---
 
@@ -239,9 +258,15 @@ en el HTML de la demo. Se revirtió al número imposible y se verificó con `gre
 sobre cinco variantes del número y sobre el contenido ya preparado para
 commitear, que no quedara ninguna ocurrencia.
 
-**Predicción:**
+**Predicción:** Sí, pensé que con decir "alineado" y "todo seguido, sin líneas"
+alcanzaba. Me parecía clarísimo.
 
-**Aprendizaje:**
+**Aprendizaje:** Fue donde más veces tuve que repetir lo mismo. Las líneas
+decorativas las saqué tres veces y volvieron dos; el bloque de condiciones
+llevó tres rondas. Lo que entendí es que no falla por falta de claridad mía:
+falla porque "queda bien" no tiene una definición que se pueda verificar, y
+todo lo demás del proyecto sí la tiene. Se destrabó cuando dejé de describir y
+empecé a elegir entre opciones concretas.
 
 ---
 
@@ -422,9 +447,16 @@ navegador, y son la línea que va a hacer falta el día que algo se cachee de
 verdad— pero con el comentario corregido en los dos archivos de acciones, para
 que nadie vuelva a leer ahí una garantía que hoy no existe.
 
-**Predicción:**
+**Predicción:** Pensé que proteger el panel iba a ser más difícil de lo que
+fue. Me imaginaba que había que escribir mucho para controlar quién entra.
 
-**Aprendizaje:**
+**Aprendizaje:** Fue más simple de escribir y más fácil de equivocar de lo que
+esperaba. El plan que aprobé ponía la verificación de rol en el layout, y eso
+dejaba la pantalla protegida pero la Server Action abierta: cualquiera con
+sesión de cliente podía invocarla directo y cambiar los precios sin abrir la
+página nunca. Lo encontró leyendo la documentación, no probando. Y lo que lo
+demostró fue la contraprueba: dejar el agujero a propósito y verlo funcionar.
+Esconder un botón no protege nada.
 
 ---
 
@@ -474,9 +506,15 @@ importa** —dos personas tomando el último lugar al mismo tiempo— y ahí la
 verificación y la escritura tienen que ir en una sola sentencia desde el
 principio.
 
-**Predicción:**
+**Predicción:** Sí, lo había pensado. Si cancelás una clase que ya tiene gente
+anotada, algo tiene que pasar con esas reservas.
 
-**Aprendizaje:**
+**Aprendizaje:** Lo que no había pensado es que el problema no era qué hacer,
+sino que la base lo haría sola y en silencio. `reservas` apunta a `clases` con
+borrado en cascada, así que un `delete` no daba error: se llevaba las reservas
+puestas y el estudio perdía el registro de a quién tenía que avisarle. Por eso
+cancelar cambia un estado en vez de borrar. Un borrado que no falla es más
+peligroso que uno que falla.
 
 ---
 
@@ -551,9 +589,16 @@ clave de servicio. Si PostgREST se conecta con otro nombre de rol, la función v
 a rechazar al webhook: falla ruidosa y no silenciosa, que es el lado correcto
 para equivocarse.
 
-**Predicción:**
+**Predicción:** No sabía qué era la idempotencia antes de esta parte.
 
-**Aprendizaje:**
+**Aprendizaje:** Es que una operación repetida dé el mismo resultado que hecha
+una sola vez. Importa porque Mercado Pago reintenta los avisos cuando no recibe
+respuesta a tiempo, así que el mismo pago puede llegar varias veces. Lo que lo
+garantiza no es una verificación en el código sino una restricción de unicidad
+en la base: si el identificador del pago ya existe, el insert no entra. Se
+probó con cinco llamadas en paralelo con el mismo pago y acreditó una sola. Si
+la verificación estuviera en el código, entre consultar y escribir pasaría
+tiempo y podrían entrar dos.
 
 ---
 
@@ -660,9 +705,16 @@ revés de lo que hace falta: el momento de enterarse de que se puede cancelar
 sin costo es antes de reservar, no cuando algo falla. Se agregó también debajo
 de la tabla de turnos.
 
-**Predicción:**
+**Predicción:** Sí, se me había ocurrido. Si hay seis lugares y entran dos
+personas al mismo tiempo, algo tiene que decidir cuál se queda con el último.
 
-**Aprendizaje:**
+**Aprendizaje:** Que contar antes de escribir no alcanza nunca, porque entre
+contar y escribir pasa tiempo y en ese rato puede entrar otra. La solución es
+que la base bloquee la fila de la clase hasta terminar: la segunda persona
+espera y cuando pasa ya ve la reserva de la primera. Lo probamos con dos
+transacciones reales y la segunda esperó dos segundos antes de recibir
+"completa" — esos dos segundos son la prueba de que esperó el candado y no de
+que leyó un número viejo.
 
 ---
 
@@ -790,9 +842,17 @@ endpoint de Supabase y la clave publishable. De ahí sale la regla que organiza
 todo el módulo: **lo que se configura en Supabase no se puede saltear; lo que
 escribimos nosotros, sí.**
 
-**Predicción:**
+**Predicción:** Pensé que la seguridad iba a ser lo más difícil del proyecto.
 
-**Aprendizaje:**
+**Aprendizaje:** Fue más fácil de escribir de lo que esperaba y más fácil de
+creer que estaba hecha. Las cookies de sesión no tenían `HttpOnly` ni `Secure`
+—los dos atributos que la materia marca como error frecuente— y eso no se ve
+leyendo el código: se ve mirando las cabeceras. Y lo más importante de esta
+entrada no es un bug sino un reporte: me dijo que había conectado el bloqueo de
+intentos fallidos y no lo había conectado, porque el script imprimía "listo"
+sin comprobar que el reemplazo hubiera encontrado su texto. Un error de código
+se arregla con un commit; un reporte sin verificar envenena todo lo que viene
+después, porque a partir de ahí razonás sobre un estado que no es el real.
 
 ---
 
@@ -993,7 +1053,8 @@ clase que el script **no** toca. En los datos reales sí había una.
 el orden a propósito para comprobar que el arnés lo ve: ahora corta con
 `reservas_credito_id_fkey`, el mismo 23503. Antes del caso nuevo, pasaba.
 
-**Predicción:**
+**Predicción:** No se me había ocurrido que los datos de prueba pudieran romper
+el sitio de verdad. Pensaba que eran filas de más, molestas pero inofensivas.
 
 ### El arreglo vivía en el editor de Supabase y no en el repositorio
 
@@ -1602,3 +1663,49 @@ el archivo.
 **Cómo lo detecté:**
 
 **Corrección aplicada:**
+---
+
+## Dónde falló y dónde no
+
+Las entradas de arriba cuentan episodios sueltos. Mirándolas juntas aparece un
+patrón que no se ve en ninguna por separado.
+
+Lo que más me costó fue el diseño visual. El bloque de condiciones de
+`/paquetes` necesitó tres rondas: pedí "alineado" y recibí una grilla de dos por
+dos; lo rechacé y recibí cuatro en una fila; lo rechacé otra vez y recién
+entonces salió lo que quería, que era texto corrido. Las líneas decorativas las
+saqué tres veces y volvieron dos. La alineación del header llevó cuatro rondas.
+
+Lo que más miedo me daba era Mercado Pago, y fue de lo que mejor salió. No
+entendía bien cómo funcionaba y daba por sentado que conectarlo con el sitio iba
+a ser lo más difícil del proyecto. No lo fue: el flujo de preferencia, la firma
+del webhook y la acreditación entraron con un plan aprobado y verificación. Lo
+que sí costó fue una configuración del panel de Mercado Pago (una clave secreta
+distinta por ambiente) que no tenía nada que ver con el código.
+
+Y módulos enteros entraron con un solo plan aprobado. Políticas de seguridad, el
+webhook con sus trece casos de firma, la API con sus doce endpoints: cosas que me
+parecían mucho más difíciles que acomodar cuatro tarjetas.
+
+## Por qué
+
+Todo lo que salió bien de una tiene algo en común: una definición verificable.
+La firma del webhook valida o no valida. RLS bloquea o no bloquea. El pago
+acredita o no acredita. Para cada una de esas cosas se puede escribir una prueba
+que devuelva verdadero o falso, y de hecho las escribimos: ocho arneses de base
+de datos y ochenta y tres pruebas de navegador.
+
+El diseño no tiene eso. "Alineado" sí se puede medir, y lo medimos con
+coordenadas al píxel. Pero "queda bien" no. No hay comando que lo responda.
+
+Por eso el método que funcionó en todo el proyecto (medir, contraprobar, no
+darle por bueno nada a nadie) falló exactamente ahí: no había nada que medir.
+Las tres rondas del bloque de condiciones no se destrabaron porque yo explicara
+mejor, sino porque alguien me ofreció tres opciones concretas en vez de pedirme
+que describiera. Pasar de "describí lo que querés" a "elegí entre estas tres"
+convirtió algo sin definición en algo con definición.
+
+La conclusión práctica: para lo que tiene criterio de aceptación, un prompt con
+restricciones alcanza. Para lo visual, lo que funciona no es escribir mejor el
+pedido sino acortar el ciclo, mostrar, señalar, elegir entre opciones. Es más
+parecido a trabajar con un diseñador que a programar.
