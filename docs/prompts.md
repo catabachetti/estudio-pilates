@@ -1650,21 +1650,6 @@ nativo", es **"sin JavaScript no se pierde nada porque ya no había nada"**.
 Medido: el HTML de un error 500 es un `<body>` con un `<div hidden>`, con o sin
 el archivo.
 
-## Plantilla
-
-### AAAA-MM-DD — Título
-
-**Prompt:**
-
-**Resultado:**
-
-**Fallo detectado:**
-
-**Cómo lo detecté:**
-
-**Corrección aplicada:**
----
-
 ## Dónde falló y dónde no
 
 Las entradas de arriba cuentan episodios sueltos. Mirándolas juntas aparece un
@@ -1709,3 +1694,29 @@ La conclusión práctica: para lo que tiene criterio de aceptación, un prompt c
 restricciones alcanza. Para lo visual, lo que funciona no es escribir mejor el
 pedido sino acortar el ciclo, mostrar, señalar, elegir entre opciones. Es más
 parecido a trabajar con un diseñador que a programar.
+
+Una aclaración sobre los números de arriba. Los cuatro técnicos —ocho arneses,
+ochenta y tres pruebas, doce endpoints, trece casos de firma— salen de contar
+el código y traen el comando que los verifica. Los tres de diseño —tres rondas,
+tres veces, cuatro rondas— son mi recuerdo: no están en este registro.
+
+Y esa ausencia es el hallazgo otra vez. Los episodios con criterio de
+aceptación quedaron anotados con número y comando. Los de diseño, que son los
+que más rondas costaron, no dejaron rastro, porque no había nada que medir y
+entonces no hubo nada que anotar.
+
+---
+
+## Plantilla
+
+### AAAA-MM-DD — Título
+
+**Prompt:**
+
+**Resultado:**
+
+**Fallo detectado:**
+
+**Cómo lo detecté:**
+
+**Corrección aplicada:**
