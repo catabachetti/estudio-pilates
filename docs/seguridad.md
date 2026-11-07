@@ -467,6 +467,51 @@ justo quien más necesita leer el mensaje. Además `forbidden()` figura como
 
 ---
 
+## 10.1 Un 500 que no era del servidor: una clave de la URL usada sin validar
+
+Doce pantallas mostraban un aviso buscándolo en un diccionario con la clave que
+llegaba por la URL: `MENSAJES[parametros?.error]`, `AVISOS[parametros?.estado]`,
+`RESULTADOS[parametros?.r]`.
+
+**Una clave como `toString`, `constructor`, `valueOf` o `__proto__` no devuelve
+`undefined`: devuelve la propiedad heredada del prototipo de `Object`.** Casi
+siempre una función, y una función no se puede renderizar. Medido sobre el sitio
+compilado, con `?error=toString`:
+
+| Ruta | Antes |
+|---|---|
+| `/registro`, `/ingresar`, `/paquetes`, `/contacto` | **500** |
+| `/cuenta`, `/cuenta/contrasena` | **500** |
+| `/admin/clases`, `/admin/creditos`, `/admin/paquetes` | **500** |
+| `/reservar` | 200, pero con una caja `role="alert"` **vacía** |
+
+`/reservar` se salvaba por casualidad: sus valores son objetos y el código lee
+`.tono` y `.texto`, que en una función son `undefined`. No era una defensa.
+
+**Gravedad: baja, y por qué.** No hay fuga —la pantalla de error muestra el
+`digest` y nada de adentro—, no hay escritura, y quien lo dispara se lo hace a sí
+mismo armando la URL. Lo que sí es: un 500 en una página pública a partir de una
+entrada sin validar, en un proyecto cuya regla es que **todo lo que llega por la
+URL se valida antes de usarlo**. Esa regla ya estaba escrita para `volver`, con
+`rutaInterna()`; para los avisos faltaba, y faltaba en las doce.
+
+Arreglado con `app/lib/avisos.js`:
+
+```js
+export function mensajeDe(diccionario, clave) {
+  return typeof clave === 'string' && Object.hasOwn(diccionario, clave)
+    ? diccionario[clave]
+    : undefined
+}
+```
+
+`Object.hasOwn` mira solo las propiedades propias, así que una clave inventada
+cae en `undefined` y cada pantalla no muestra ningún aviso, que es lo que ya
+sabían hacer. Verificado: las doce rutas devuelven 200 con las cuatro claves del
+prototipo, y los valores válidos siguen mostrando su mensaje.
+
+---
+
 ## 11. Los errores frecuentes de la diapositiva 17
 
 | Error | Estado | Verificación |
@@ -557,6 +602,22 @@ instalada:
 
 - **CSRF.** El `Origin` del pedido se compara con el `Host`. Las discrepancias
   se rechazan.
+
+  **Y esto cubre las Server Actions, no los Route Handlers**, que es una
+  distinción que la lista de arriba no hacía y conviene que haga. Medido el 7 de
+  noviembre de 2026, el mismo `Origin` ajeno contra los dos caminos:
+
+  | | con `Origin: https://sitio-ajeno.example` |
+  |---|---|
+  | `POST /contacto` (Server Action, formulario nativo) | **500**, rechazado |
+  | `POST /api/v1/mensajes` (Route Handler) | **201**, aceptado |
+
+  Para los endpoints que piden sesión eso no alcanza para nada: la cookie es
+  `SameSite=Lax`, así que no viaja en un POST de otro sitio y el pedido llega sin
+  identidad. **El que queda expuesto es el único sin sesión**, `POST
+  /api/v1/mensajes`, que además acepta pedidos **sin `Content-Type`** —medido:
+  201— y eso es lo que lo vuelve enviable por un formulario de otro sitio sin
+  preflight. Está en §14 como limitación conocida, con las opciones.
 - **Límite de tamaño**, 1MB por acción.
 - **Identificadores de acción cifrados** en compilación, y las acciones sin usar
   se eliminan del paquete del navegador, así que no quedan como endpoints
@@ -687,11 +748,19 @@ que lista cosas ya resueltas deja de ser creíble para las que sí lo están, as
 que lo resuelto se mueve abajo con la fecha en vez de borrarse: el motivo por
 el que era un riesgo sigue siendo información útil.
 
-### Pendiente, verificado el 3 de noviembre de 2026
+### Pendiente, verificado el 7 de noviembre de 2026
 
-**Activar "Confirm email".** Cierra la fuga de `user_already_exists` de §2.1 y
-hace falta igual para un sitio real. Hoy está apagado a propósito, para no
-bloquear las cuentas de prueba mientras se desarrolla.
+**Limpiar los datos de prueba.** `supabase/limpiar-datos-de-prueba.sql`, que no
+se corrió todavía a propósito: se deja para cuando termine de probarse todo.
+Cubre las clases de 2027, las cuentas con `+alias` y los pagos de prueba de
+Mercado Pago. Las cuentas en sí se borran a mano desde el panel, de a una.
+
+### Resuelto
+
+**"Confirm email" activado** — 7 de noviembre de 2026. Cierra la fuga de
+`user_already_exists` de §2.1 y hace falta igual para un sitio real. Estuvo
+apagado a propósito mientras se desarrollaba, para no bloquear las cuentas de
+prueba.
 
 Se comprueba sin entrar al panel, porque Supabase lo expone:
 
@@ -701,18 +770,27 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/settings" \
 ```
 
 ```
-"mailer_autoconfirm": true     <- Confirm email APAGADO
+"mailer_autoconfirm": false     <- Confirm email ACTIVADO
 ```
 
-Cuando esté activado, ese valor pasa a `false`. **Medido de nuevo el 3 de
-noviembre de 2026: sigue en `true`.**
+**Y tuvo una consecuencia que conviene dejar escrita**, porque no era obvia:
+con la confirmación activada, un alta a una dirección **no entregable** no crea
+la cuenta. Medido contra `/auth/v1/signup` con un dominio `.invalid`:
 
-**Limpiar los datos de prueba.** `supabase/limpiar-datos-de-prueba.sql`, que no
-se corrió todavía a propósito: se deja para cuando termine de probarse todo.
-Cubre las clases de 2027, las cuentas con `+alias` y los pagos de prueba de
-Mercado Pago. Las cuentas en sí se borran a mano desde el panel, de a una.
+```
+{"code": 500, "error_code": "unexpected_failure",
+ "msg": "Error sending confirmation email"}
+```
 
-### Resuelto
+Y la cuenta no queda ni sin confirmar: Supabase deshace el alta. Eso rompió el
+caso E18 de `docs/pruebas.md`, que registraba por el formulario con un dominio
+`.invalid` y afirmaba como invariante que **la cuenta se creó**. Ese invariante
+había sido elegido justamente para sobrevivir a este cambio, y no sobrevivió:
+sobrevive al cambio de pantalla, no a una dirección que no existe.
+
+Lo bueno: el camino real sí funciona. `app/acciones/sesion.js:74` manda a
+`/ingresar?estado=confirma` cuando `signUp` no devuelve sesión, que es
+exactamente lo que pasa ahora con una dirección entregable.
 
 **`Site URL` volvió a la de Vercel** — 19 de octubre de 2026, verificado con
 captura del panel. Durante el desarrollo de la recuperación de contraseña

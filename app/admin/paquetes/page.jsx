@@ -4,6 +4,7 @@ import { clienteConSesion } from '../../lib/supabase-sesion'
 import { precioEnPesos } from '../../datos/sitio'
 import { editarPaquete, cambiarActivo } from '../../acciones/admin-paquetes'
 import { LARGO_NOMBRE, LARGO_INCLUYE } from '../../lib/esquemas'
+import { mensajeDe } from '../../lib/avisos'
 
 const MENSAJES = {
   nombre: `El nombre no puede quedar vacío ni pasar de ${LARGO_NOMBRE} caracteres.`,
@@ -29,8 +30,8 @@ export default async function AdminPaquetesPage({ searchParams }) {
   if (!esAdmin) return <SinPermiso />
 
   const parametros = await searchParams
-  const error = MENSAJES[parametros?.error]
-  const aviso = AVISOS[parametros?.estado]
+  const error = mensajeDe(MENSAJES, parametros?.error)
+  const aviso = mensajeDe(AVISOS, parametros?.estado)
 
   // Acá se piden todos, también los desactivados: el sitio público muestra solo
   // los activos, pero desde el panel hay que poder volver a activarlos.

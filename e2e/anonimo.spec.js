@@ -69,26 +69,48 @@ test.describe('reservar sin sesión', () => {
     // distingue de los enlaces de semana anterior y siguiente, que viven en un
     // <div> al lado. Se leen los href primero y se navega con goto en vez de
     // hacer clic, para no depender de cuándo termina cada navegación.
-    const dias = page
-      .getByRole('navigation', { name: 'Días de la semana' })
-      .getByRole('listitem')
-      .getByRole('link')
+    // Y NO ALCANZA CON RECORRER LA SEMANA MOSTRADA, que es lo que hacía la
+    // primera versión de este arreglo. Medido el sábado 7 de noviembre a las
+    // 17:45: la tira de ESTA semana tenía **un solo día** —el de hoy, con sus
+    // tres clases de sábado ya pasadas— porque el domingo el estudio no abre.
+    // El mensaje de la prueba decía "ninguno de los 1 días ofrece reservar", que
+    // era cierto y no era el punto.
+    //
+    // Así que cuando la semana se agota se sigue el enlace "Semana siguiente",
+    // que es exactamente lo que haría una persona. Se acota a tres semanas: si
+    // en tres no hay nada, la precondición de verdad no se cumple.
+    const navegacion = page.getByRole('navigation', { name: 'Días de la semana' })
+    const siguiente = page.getByRole('link', { name: /^Semana siguiente/ })
+    let diasMirados = 0
+    let semanasMiradas = 0
 
-    const cuantos = await dias.count()
-    const rutas = []
-    for (let i = 0; i < cuantos; i++) rutas.push(await dias.nth(i).getAttribute('href'))
+    for (let semana = 0; semana < 3; semana++) {
+      semanasMiradas++
+      const dias = navegacion.getByRole('listitem').getByRole('link')
+      const rutas = []
+      for (let i = 0; i < (await dias.count()); i++) {
+        rutas.push(await dias.nth(i).getAttribute('href'))
+      }
 
-    for (const ruta of rutas) {
+      for (const ruta of rutas) {
+        if (await ofertas.count()) break
+        await page.goto(ruta)
+        diasMirados++
+      }
+
       if (await ofertas.count()) break
-      await page.goto(ruta)
+      // Sin semana siguiente el enlace no existe: la página pone un <span>
+      // apagado en su lugar, así que esto distingue "no hay más" de "no busqué".
+      if ((await siguiente.count()) === 0) break
+      await page.goto(await siguiente.getAttribute('href'))
     }
 
     const ingresar = ofertas.first()
     await expect(
       ingresar,
-      `ninguno de los ${cuantos} días de la semana ofrece reservar. Es una ` +
-        'precondición de este caso: o la agenda se agotó, o todas las clases ' +
-        'están completas. No es un bug del circuito de `volver`.'
+      `ninguno de los ${diasMirados} días mirados en ${semanasMiradas} semana(s) ` +
+        'ofrece reservar. Es una precondición de este caso: o la agenda se agotó, ' +
+        'o todas las clases están completas. No es un bug del circuito de `volver`.'
     ).toBeVisible()
 
     await ingresar.click()

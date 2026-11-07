@@ -13,6 +13,7 @@ import { agendaDeLaSemana } from '../lib/agenda-db'
 import { horasDeCancelacion } from '../lib/ajustes'
 import { usuarioActual } from '../lib/supabase-sesion'
 import { reservarClase } from '../acciones/reservas'
+import { mensajeDe } from '../lib/avisos'
 
 // Lo que puede contestar reservar_clase(), traducido. `sin_creditos` no está
 // acá: no es un error de la persona sino un estado normal, y se muestra como un
@@ -45,7 +46,7 @@ export default async function ReservarPage({ searchParams }) {
     horasDeCancelacion(),
   ])
 
-  const resultado = RESULTADOS[parametros?.r]
+  const resultado = mensajeDe(RESULTADOS, parametros?.r)
   const sinCreditos = parametros?.r === 'sin_creditos'
 
   return (

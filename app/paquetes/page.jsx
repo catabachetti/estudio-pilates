@@ -3,6 +3,7 @@ import { condicionesCon, precioEnPesos, enlaceWhatsapp } from '../datos/sitio'
 import { horasDeCancelacion } from '../lib/ajustes'
 import { clienteSupabase } from '../lib/supabase'
 import { iniciarCompra } from '../acciones/mercadopago'
+import { mensajeDe } from '../lib/avisos'
 
 // Lo que puede salir mal al empezar una compra. El detalle técnico va al
 // registro del servidor; acá se dice qué pasó y, cuando corresponde, que no se
@@ -27,7 +28,7 @@ export default async function PaquetesPage({ searchParams }) {
   const parametros = await searchParams
   // `error` ya lo usa la consulta de abajo para el fallo de lectura: este es
   // otro, el del intento de compra que volvió con ?r=.
-  const errorDeCompra = MENSAJES[parametros?.r]
+  const errorDeCompra = mensajeDe(MENSAJES, parametros?.r)
 
   const horas = await horasDeCancelacion()
 

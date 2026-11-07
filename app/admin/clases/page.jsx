@@ -10,6 +10,7 @@ import {
   editarClase,
   cambiarEstadoClase,
 } from '../../acciones/admin-clases'
+import { mensajeDe } from '../../lib/avisos'
 
 const MENSAJES = {
   fecha: 'Revisá la fecha: no parece una fecha válida.',
@@ -35,7 +36,7 @@ const AVISOS = {
 // en la URL. Viene de afuera, así que se lo trata como texto cualquiera: si no
 // es un entero razonable, se usa el mensaje genérico.
 function mensajeDeError(parametros) {
-  if (parametros?.error !== 'cupo-ocupado') return MENSAJES[parametros?.error]
+  if (parametros?.error !== 'cupo-ocupado') return mensajeDe(MENSAJES, parametros?.error)
 
   const n = Number(parametros.reservas)
   if (!Number.isInteger(n) || n < 0 || n > 999) return MENSAJES.guardar
@@ -50,7 +51,7 @@ export default async function AdminClasesPage({ searchParams }) {
   const parametros = await searchParams
   const fecha = esFecha(parametros?.fecha) ? parametros.fecha : ahoraEnElEstudio().clave
   const error = mensajeDeError(parametros)
-  const aviso = AVISOS[parametros?.estado]
+  const aviso = mensajeDe(AVISOS, parametros?.estado)
 
   const { clases, tipos, instructoras, falla } = await leerDia(fecha)
 

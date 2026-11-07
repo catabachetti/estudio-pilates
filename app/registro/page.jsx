@@ -2,6 +2,7 @@ import Link from 'next/link'
 import EncabezadoPagina from '../components/EncabezadoPagina'
 import { registrarse } from '../acciones/sesion'
 import CampoDeContrasena from '../components/CampoDeContrasena'
+import { mensajeDe } from '../lib/avisos'
 
 export const metadata = {
   title: 'Crear cuenta | ACTIVE',
@@ -19,7 +20,7 @@ const MENSAJES = {
 
 export default async function RegistroPage({ searchParams }) {
   const parametros = await searchParams
-  const error = MENSAJES[parametros?.error]
+  const error = mensajeDe(MENSAJES, parametros?.error)
 
   return (
     <main className="seccion">
