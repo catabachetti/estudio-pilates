@@ -3,6 +3,7 @@ import EncabezadoPagina from '../components/EncabezadoPagina'
 import FormularioDeContacto from '../components/FormularioDeContacto'
 import { DIRECCION } from '../datos/sitio'
 import { MOTIVOS, TEXTO_OK } from '../lib/mensajes'
+import { mensajeDe } from '../lib/avisos'
 
 export const metadata = {
   title: 'Contacto | ACTIVE',
@@ -34,7 +35,7 @@ function AvisoDelEnvio({ m }) {
   const texto =
     m === 'invalido'
       ? 'Revisá los datos: falta algo o no tiene el formato esperado.'
-      : (MOTIVOS[m] ?? 'No pudimos enviar tu mensaje. Probá de nuevo.')
+      : (mensajeDe(MOTIVOS, m) ?? 'No pudimos enviar tu mensaje. Probá de nuevo.')
 
   return (
     <p className="mensaje mensaje-error" role="alert">

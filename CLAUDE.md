@@ -412,6 +412,48 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   guardar la IP o cualquier dato nuevo, esa página tiene que decirlo: hoy afirma
   textualmente que no se guarda la dirección IP.
 
+## Lo que llega por la URL
+
+- **Un parámetro de la URL no se usa como clave de un objeto.** `MENSAJES[parametros?.error]`
+  parece inofensivo y no lo es: una clave como `toString`, `constructor`,
+  `valueOf` o `__proto__` devuelve la propiedad **heredada del prototipo** de
+  `Object`, casi siempre una función, y una función no se puede renderizar.
+  Medido el 7 de noviembre de 2026: **once pantallas devolvían 500** con
+  `?error=toString` y `/reservar` dibujaba una caja `role="alert"` vacía.
+  Se usa `mensajeDe()` de `app/lib/avisos.js`, que mira solo las propiedades
+  propias con `Object.hasOwn`.
+- Es la misma regla que ya valía para `volver` con `rutaInterna()`. **Todo lo
+  que llega por la URL se valida antes de usarlo**, y "usarlo" incluye
+  indexar un objeto con eso.
+
+## Si se agrega un endpoint sin sesión
+
+- **La protección de CSRF de Next cubre las Server Actions, no los Route
+  Handlers.** Medido con el mismo `Origin` ajeno: `POST /contacto` (acción) da
+  500 y `POST /api/v1/mensajes` (handler) daba 201. A los endpoints con sesión
+  no les afecta, porque la cookie es `SameSite=Lax` y no viaja en un POST de
+  otro sitio; **el expuesto es cualquiera que no pida sesión**.
+- Lo que se hace: rechazar `Sec-Fetch-Site: cross-site`, como en
+  `app/api/v1/mensajes/route.js`. La pone el navegador, no quien escribe el
+  pedido, así que un `curl` o un script pasan —eso es deliberado, y por eso los
+  ejemplos de `docs/api.md` siguen valiendo—. Lo que bloquea es un formulario
+  de otro dominio haciendo que sus visitantes escriban.
+
+## Limpiar datos de prueba
+
+- **Las clases de prueba van por una lista explícita de ids, no por un
+  predicado.** Hasta el 7 de noviembre de 2026 se identificaban por
+  `fecha >= '2027-01-01'`, y ese día el seed —que va de `current_date` a
+  `current_date + 55`— empezó a generar clases el 2027-01-01: el script se
+  habría llevado siete clases reales. El propio archivo había escrito la
+  advertencia semanas antes y no sirvió de nada; lo que avisó fue
+  `probar-limpieza.sh`.
+- El protocolo es: correr la sección 1, **leer** lo que devuelve, y pegar los
+  ids en el `declare` de la sección 2. Con la lista vacía el script no borra
+  ninguna clase y lo dice.
+- **Un riesgo documentado no es un riesgo cubierto.** La diferencia es si hay
+  algo que falle cuando ocurra.
+
 ## Qué revalidar después de escribir
 
 - **Paquetes** → `/paquetes` y `/`.

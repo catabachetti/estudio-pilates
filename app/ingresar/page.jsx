@@ -2,6 +2,7 @@ import Link from 'next/link'
 import EncabezadoPagina from '../components/EncabezadoPagina'
 import { ingresar } from '../acciones/sesion'
 import { rutaInterna } from '../lib/rutas'
+import { mensajeDe } from '../lib/avisos'
 
 export const metadata = {
   title: 'Ingresar | ACTIVE',
@@ -34,7 +35,7 @@ export default async function IngresarPage({ searchParams }) {
   const error =
     parametros?.error === 'espera'
       ? mensajeDeEspera(parametros)
-      : MENSAJES[parametros?.error]
+      : mensajeDe(MENSAJES, parametros?.error)
   const confirma = parametros?.estado === 'confirma'
 
   // El destino se valida también al dibujar el formulario, no solo al recibirlo:

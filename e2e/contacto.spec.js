@@ -103,6 +103,50 @@ test.describe('el formulario de contacto', () => {
     await borrarMensajesDe(email)
   })
 
+  // Caso 18. EL ENDURECIMIENTO CONTRA UN FORMULARIO DE OTRO SITIO.
+  //
+  // `POST /api/v1/mensajes` es el único endpoint de la API sin sesión, y por eso
+  // el único donde la protección de CSRF de Next no alcanza: esa protección
+  // compara `Origin` con `Host` y **cubre las Server Actions, no los Route
+  // Handlers**. Medido: el mismo `Origin` ajeno daba 500 contra la acción y 201
+  // contra el handler.
+  //
+  // Se rechaza `Sec-Fetch-Site: cross-site`, que es la cabecera que pone el
+  // navegador y dice de dónde salió el pedido. Un script no la manda, así que
+  // los ejemplos de curl de docs/api.md siguen valiendo.
+  test('rechaza un pedido que venga de otro sitio, y acepta el resto', async ({
+    page,
+  }) => {
+    const email = correoDePrueba()
+    const cuerpo = {
+      nombre: 'Prueba cross-site',
+      email,
+      mensaje: 'un mensaje para comprobar el endurecimiento del endpoint',
+    }
+
+    const cruzado = await page.request.post('/api/v1/mensajes', {
+      headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'cross-site' },
+      data: cuerpo,
+    })
+    expect(cruzado.status(), 'un pedido cross-site tiene que dar 403').toBe(403)
+
+    // Y NADA SE ESCRIBIO, que es lo que de verdad importa del rechazo.
+    const tras403 = await supabase(
+      `/rest/v1/mensajes?select=id&email=eq.${encodeURIComponent(email)}`
+    )
+    expect(tras403, 'el pedido rechazado no tiene que haber escrito').toHaveLength(0)
+
+    // EL CONTROL: sin esa cabecera el mismo pedido entra. Sin esto, un 403 para
+    // todo también pasaría esta prueba.
+    const propio = await page.request.post('/api/v1/mensajes', {
+      headers: { 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-origin' },
+      data: cuerpo,
+    })
+    expect(propio.status(), 'un pedido del propio sitio tiene que entrar').toBe(201)
+
+    await borrarMensajesDe(email)
+  })
+
   // Caso 17. El tercer estado, forzado. Sin esto, "error" sería una rama que
   // nunca se ejecuta: el tipo (c) de docs/pruebas.md.
   test('si la API falla, lo dice y no se pierde lo escrito', async ({ page }) => {

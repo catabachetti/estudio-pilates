@@ -6,6 +6,7 @@ import { precioEnPesos } from '../../datos/sitio'
 import { textoDeFecha } from '../../datos/agenda'
 import { resumenDeCreditos } from '../../lib/creditos'
 import { buscarPersona, otorgarCreditos } from '../../acciones/admin-creditos'
+import { mensajeDe } from '../../lib/avisos'
 
 const MENSAJES = {
   email: 'Revisá el correo: no parece una dirección válida.',
@@ -21,7 +22,7 @@ export default async function AdminCreditosPage({ searchParams }) {
   if (!esAdmin) return <SinPermiso />
 
   const parametros = await searchParams
-  const error = MENSAJES[parametros?.error]
+  const error = mensajeDe(MENSAJES, parametros?.error)
   const otorgados = avisoDeOtorgado(parametros)
   const personaId = esUuid(parametros?.persona) ? parametros.persona : null
 

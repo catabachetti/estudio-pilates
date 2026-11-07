@@ -3,6 +3,7 @@ import EncabezadoPagina from '../../components/EncabezadoPagina'
 import CampoDeContrasena from '../../components/CampoDeContrasena'
 import { usuarioActual } from '../../lib/supabase-sesion'
 import { cambiarContrasena } from '../../acciones/recuperar'
+import { mensajeDe } from '../../lib/avisos'
 
 export const metadata = {
   title: 'Cambiar contraseña | ACTIVE',
@@ -30,7 +31,7 @@ export default async function CambiarContrasenaPage({ searchParams }) {
   if (!usuario) redirect('/ingresar?volver=%2Fcuenta%2Fcontrasena')
 
   const parametros = await searchParams
-  const error = MENSAJES[parametros?.error]
+  const error = mensajeDe(MENSAJES, parametros?.error)
 
   return (
     <main className="seccion">

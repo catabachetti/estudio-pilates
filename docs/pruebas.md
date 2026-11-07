@@ -46,13 +46,17 @@ están enumerados uno por uno en la sección 3.
 | **De integración contra la base** | `probar-reservas.sh` (6), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `probar-mensajes.sh` (8 secciones), `validar-local.sh` (6 secciones) | 44 |
 | **De concurrencia** | `probar-reservas.sh`, con **dos transacciones reales** | 1, y es el que importa |
 | **De contrato con un tercero** | `probar-webhook.mjs` (13), `probar-webhook-dos-claves.sh` (8), `probar-preferencia.mjs` (3) | 24 |
-| **E2E de navegador** | `e2e/*.spec.js` | **83 en total: 81 pasan, 2 se saltean** |
+| **E2E de navegador** | `e2e/*.spec.js` | **84 en total: 82 pasan, 2 se saltean** |
 
 El total de E2E lo informa el propio corredor con `npx playwright test --list`.
-Los 83 no son 83 archivos de prueba: son 22 escenarios distintos, y los que no
+Los 84 no son 84 archivos de prueba: son 23 escenarios distintos, y los que no
 escriben en la base corren en los tres motores. El total fue 67 → 76 (E19, tres
 anchos por tres motores) → 83 (el formulario de contacto y la sexta pantalla del
-panel).
+panel) → 84 (E23, el endurecimiento del endpoint público).
+
+**La cuenta de los que pasan cambió dos veces el 7 de noviembre**, y las dos por
+algo que la revisión encontró: E18 dejó de poder afirmar lo que afirmaba —ver
+6.8— y E23 entró nueva.
 
 **Las unitarias son pocas a propósito.** Las reglas del negocio de este
 proyecto no viven en funciones de JavaScript: viven en funciones de Postgres.
@@ -192,7 +196,7 @@ qué le pidieron, no.
 
 ### 3.7 Las pruebas E2E — `npm run test:e2e`
 
-81 pasan y 2 se saltean con motivo. Contra **el sitio compilado**, no `next
+82 pasan y 2 se saltean con motivo. Contra **el sitio compilado**, no `next
 dev`: lo recomienda la guía de la versión instalada y es como se verificó todo
 el resto del proyecto.
 
@@ -215,11 +219,12 @@ el resto del proyecto.
 | E15 | **sin JS** | Cuenta nueva | Ingresar por el formulario | Abre sesión. *Se saltea en WebKit: ver 6.4* |
 | E16 | **sin JS** | Cuenta con 1 crédito | Reservar y cancelar | Funciona entero. *Se saltea en WebKit* |
 | E17 | **sin JS** | — | Abrir `/registro` | El campo trae `minLength`, `pattern`, la lista de reglas y el `<meter>` quieto |
-| E18 | **sin JS** | — | Completar el registro | **La cuenta se crea** |
+| E18 | **sin JS** | — | Completar el registro con una dirección `.invalid` | **El navegador termina en una URL que eligió el servidor** —`?estado=confirma` o `/registro?error=`—, o sea que el POST nativo llegó a la Server Action. Ver 6.7: desde el 7 de noviembre **ya no afirma que la cuenta se cree** |
 | E19 | anónimo | — | Abrir `/paquetes` a 1280, 1024 y 900px y medir los botones COMPRAR | Los botones de una misma fila **arrancan a la misma altura**, con menos de 0,5px de diferencia |
 | E20 | anónimo | — | En `/contacto`: enviar con el mensaje corto, corregirlo y enviar | El error por campo aparece **sin salir a la red**; después se ven los tres estados, va **un** POST a `/api/v1/mensajes`, **ninguno** a la Server Action, y la base tiene **una** fila |
 | E21 | anónimo | La API responde 500 (forzado con `page.route`) | Enviar el formulario | Aparece el aviso de error **y el texto escrito no se pierde** |
 | E22 | **sin JS** | — | Enviar el formulario de contacto | Redirige a `?m=ok` y **el mensaje llega a la base**. Es la prueba que **habilita** al componente de cliente: ver 6.6 |
+| E23 | anónimo | — | `POST /api/v1/mensajes` con `Sec-Fetch-Site: cross-site`, y después con `same-origin` | **403** y **nada escrito** en el primero; **201** en el segundo. El control importa: un 403 para todo también pasaría sin él |
 
 **Sobre E19, que es la única prueba geométrica de la suite.** Afirma una
 relación —los botones de una fila arrancan a la misma altura— y no una imagen.
@@ -571,7 +576,48 @@ arreglar: es que desaparece el argumento por el que ese archivo está permitido.
 Vale decirlo porque es el único caso de la suite donde una prueba en rojo no
 pide arreglar código sino **revisar una decisión de arquitectura**.
 
-### 6.7 Codegen y Trace Viewer
+### 6.7 Una prueba que tuvo que bajar lo que afirmaba
+
+E18 afirmaba que el registro sin JavaScript **crea la cuenta**, y ese invariante
+estaba elegido a propósito para sobrevivir a que se activara "Confirm email":
+con la opción apagada el registro deja la sesión abierta, con ella activada manda
+a `/ingresar?estado=confirma`, y las dos son correctas. Afirmar una de las dos
+pantallas habría roto la prueba ese día; afirmar la creación de la cuenta, no.
+
+**Sobrevivió al cambio de pantalla y no a otra cosa.** Medido el 7 de noviembre,
+el día que se activó la opción, contra `/auth/v1/signup` con un dominio
+`.invalid`:
+
+```
+{"code": 500, "error_code": "unexpected_failure",
+ "msg": "Error sending confirmation email"}
+```
+
+Y la cuenta no queda ni sin confirmar: **Supabase deshace el alta**. La prueba
+usa un dominio `.invalid` justamente para no mandarle correo a nadie, así que su
+invariante pasó a ser imposible de cumplir.
+
+**Qué afirma ahora:** que el navegador terminó en una URL **elegida por el
+servidor**. Eso es lo que esta prueba vino a verificar —que el formulario nativo
+llega a la Server Action sin una línea de JavaScript— y sigue siendo cierto con
+la opción prendida o apagada.
+
+**Qué dejó de cubrir, dicho para que nadie lo suponga cubierto:** que el alta se
+complete y la cuenta exista. Eso ahora depende de que un correo se pueda
+entregar, que es otro sistema.
+
+**Cómo se cubre eso:** a mano, una vez, con una dirección real. Completar
+`/registro`, recibir el correo, seguir el enlace y entrar. No se automatiza
+porque la alternativa era mandar un correo de verdad en cada corrida y por cada
+motor, o sea tres por corrida a la casilla del estudio.
+
+**Y la lección, que es la que vale:** elegir un invariante pensando en un cambio
+futuro funcionó a medias. Protegió contra el cambio que se esperaba —la
+pantalla— y no contra el que no se había pensado: que el servicio externo haga
+del envío de correo una **precondición del alta**. Un invariante es una apuesta
+sobre qué va a cambiar, y acá la apuesta acertó la mitad.
+
+### 6.8 Codegen y Trace Viewer
 
 La diapositiva 16: `codegen` graba clics y los traduce a código; el Trace Viewer
 graba capturas antes y después de cada acción, el DOM y la red.

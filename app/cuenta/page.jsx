@@ -6,6 +6,7 @@ import { resumenDeCreditos } from '../lib/creditos'
 import { horasDeCancelacion } from '../lib/ajustes'
 import { minutosHasta, sinSegundos, textoDeFecha } from '../datos/agenda'
 import { cancelarReserva } from '../acciones/reservas'
+import { mensajeDe } from '../lib/avisos'
 
 export const metadata = {
   title: 'Mi cuenta | ACTIVE',
@@ -27,7 +28,7 @@ export default async function CuentaPage({ searchParams }) {
 
   const parametros = await searchParams
   const aviso = avisoDe(parametros)
-  const error = MENSAJES[parametros?.r]
+  const error = mensajeDe(MENSAJES, parametros?.r)
 
   const supabase = await clienteConSesion()
   const [creditos, reservas, horas] = await Promise.all([
