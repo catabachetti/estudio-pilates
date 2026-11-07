@@ -617,7 +617,23 @@ instalada:
   identidad. **El que queda expuesto es el único sin sesión**, `POST
   /api/v1/mensajes`, que además acepta pedidos **sin `Content-Type`** —medido:
   201— y eso es lo que lo vuelve enviable por un formulario de otro sitio sin
-  preflight. Está en §14 como limitación conocida, con las opciones.
+  preflight.
+
+  **Arreglado el 7 de noviembre de 2026**, y solo en esa ruta: se rechaza
+  `Sec-Fetch-Site: cross-site`, la cabecera que pone el navegador y que dice de
+  dónde salió el pedido. Medido después del cambio:
+
+  | `Sec-Fetch-Site` | |
+  |---|---|
+  | `cross-site` | **403** |
+  | `same-site`, `same-origin`, `none` | 201 |
+  | sin la cabecera (curl, un script) | 201 |
+
+  Que un script pase es deliberado: lo que se bloquea es **un formulario alojado
+  en otro dominio haciendo que sus visitantes manden mensajes**, que era lo único
+  que se podía hacer con esto. Quien quiera mandar un `curl` ya podía, y el
+  límite por correo es lo que acota eso. Los ejemplos de `docs/api.md` siguen
+  valiendo tal como están escritos.
 - **Límite de tamaño**, 1MB por acción.
 - **Identificadores de acción cifrados** en compilación, y las acciones sin usar
   se eliminan del paquete del navegador, así que no quedan como endpoints

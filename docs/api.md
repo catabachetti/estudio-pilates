@@ -329,7 +329,7 @@ repetir el desafío lo invitaría a reintentar lo mismo.
 | `POST /reservas` | sesión | `{clase_id}` | 201 + `Location` |
 | `PATCH /reservas/{id}` | sesión | `{"estado":"cancelada"}` | si el crédito volvió o se perdió |
 | `GET /creditos` | sesión | — | el resumen de créditos de quien llama |
-| `POST /mensajes` | **público** | `nombre`, `email`, `mensaje` | 201 `{enviado:true}`. **429 + `Retry-After`** si ya van cinco de ese correo en la última hora |
+| `POST /mensajes` | **público** | `nombre`, `email`, `mensaje` | 201 `{enviado:true}`. **429 + `Retry-After`** si ya van cinco de ese correo en la última hora. **403** si llega con `Sec-Fetch-Site: cross-site` |
 
 `GET /clases/{id}/reservas` es el **recurso anidado**: las reservas de una
 clase no tienen sentido sin la clase, y la URL lo dice. Es de administración
@@ -350,6 +350,45 @@ redundante: las políticas dicen `user_id = auth.uid() or es_admin()`, así que
 para una cuenta de administración RLS devuelve **todo**. Sin ese filtro, el
 endpoint le mostraría a quien administra las reservas ajenas como propias. Ya
 pasó una vez en `/cuenta` y está anotado en `CLAUDE.md`.
+
+---
+
+## 7.1 El único endpoint sin sesión, y lo que lo protege
+
+`POST /mensajes` es el único de la API que no pide sesión, y es correcto: un
+formulario de contacto es para quien todavía no tiene cuenta. Lo que lo protege
+no es la autenticación.
+
+**El límite de frecuencia** vive dentro de `enviar_mensaje()`, en la base: cinco
+por correo por hora, y un sexto devuelve **429 con `Retry-After`**. 429 y no 400
+porque el pedido estaba bien; lo que falló es cuántos van.
+
+**Y el rechazo de pedidos de otro sitio**, que hizo falta por algo que no era
+evidente: la protección de CSRF de Next —comparar `Origin` con `Host`— **cubre
+las Server Actions y no los Route Handlers**. Medido el 7 de noviembre de 2026
+con el mismo `Origin: https://sitio-ajeno.example` contra los dos caminos:
+
+| | |
+|---|---|
+| `POST /contacto` (Server Action) | **500**, rechazado |
+| `POST /api/v1/mensajes` (Route Handler) | **201**, aceptado |
+
+A los demás endpoints eso no les afecta: piden sesión y la cookie es
+`SameSite=Lax`, así que no viaja en un POST de otro sitio. El expuesto era este.
+
+Se cierra rechazando `Sec-Fetch-Site: cross-site`, que es la cabecera que pone
+**el navegador** —no quien escribe el pedido— y que dice de dónde salió:
+
+```
+cross-site                        403
+same-site, same-origin, none      201
+sin la cabecera (curl, un script) 201
+```
+
+**Que un script pase es deliberado**, y por eso los ejemplos de `curl` de este
+documento siguen valiendo tal como están escritos. Lo que se bloquea es un
+formulario alojado en otro dominio haciendo que sus visitantes manden mensajes;
+quien quiera mandar un `curl` ya podía, y para eso está el límite por correo.
 
 ---
 

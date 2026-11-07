@@ -1650,6 +1650,122 @@ nativo", es **"sin JavaScript no se pierde nada porque ya no había nada"**.
 Medido: el HTML de un error 500 es un `<body>` con un `<div hidden>`, con o sin
 el archivo.
 
+## 2026-11-07 — Una revisión a fondo, y una bomba de tiempo que el propio archivo había anunciado
+
+**Prompt:** revisar todo a fondo y encontrar cualquier error, sin apuro.
+
+Encontró cinco cosas. Las dos que vale contar son la que estaba anunciada por
+escrito y la que estaba en doce lugares.
+
+### La que el archivo había predicho, y el día llegó
+
+`limpiar-datos-de-prueba.sql` identificaba las clases de prueba por
+`fecha >= date '2027-01-01'`, con el argumento de que el estudio no tenía nada
+cargado en 2027. Su encabezado terminaba así:
+
+> No correr las dos juntas sin mirar: el día que una clase real quede en 2027
+> este script se la lleva.
+
+**Ese día era hoy.** El seed genera de `current_date` a `current_date + 55`, y el
+7 de noviembre eso cruza el año: aparecen siete clases el 2027-01-01. Medido, el
+borrado se habría llevado esas siete y sus reservas.
+
+Lo encontró `probar-limpieza.sh`, que afirma que después del freno queden
+**exactamente las dos** clases de prueba que fabrica. Quedaban nueve.
+
+**Y la respuesta ya estaba escrita en el mismo archivo, veinte líneas más
+abajo**, en la sección de los pagos de Mercado Pago:
+
+> Un pago de prueba se reconoce porque lo anotamos, no porque tenga una forma
+> distinta. Se podría filtrar por fecha, o por monto. Todas esas reglas aciertan
+> hoy y el día que haya pagos reales se llevan alguno.
+
+Era el mismo razonamiento, aplicado a los pagos y no a las clases. Ahora las
+clases van por una lista explícita de ids que sale de la sección 1.
+
+**La lección no es "no filtres por fecha".** Es que **un comentario que anuncia
+una falla futura no la previene**. Esa advertencia estuvo escrita semanas, se
+leyó varias veces al tocar el archivo, y el día que se cumplió no avisó nadie:
+avisó una prueba. Un riesgo documentado y un riesgo cubierto no son lo mismo, y
+la diferencia es si hay algo que falle cuando ocurra.
+
+### La que estaba en doce lugares
+
+Doce pantallas mostraban su aviso buscándolo en un diccionario con la clave que
+llega por la URL: `MENSAJES[parametros?.error]`.
+
+Una clave como `toString`, `constructor`, `valueOf` o `__proto__` no devuelve
+`undefined`: devuelve la propiedad **heredada del prototipo** de `Object`, casi
+siempre una función. Y una función no se puede renderizar. Medido con
+`?error=toString`:
+
+| | |
+| --- | --- |
+| `/registro`, `/ingresar`, `/paquetes`, `/contacto` | **500** |
+| `/cuenta`, `/cuenta/contrasena` | **500** |
+| `/admin/clases`, `/admin/creditos`, `/admin/paquetes` | **500** |
+| `/reservar` | 200, con una caja `role="alert"` **vacía** |
+
+`/reservar` se salvaba **por casualidad**: sus valores son objetos y el código
+lee `.tono` y `.texto`, que en una función son `undefined`.
+
+Gravedad baja —no hay fuga ni escritura, y quien lo dispara se lo hace a sí
+mismo— pero es un 500 en páginas públicas desde una entrada sin validar, en un
+proyecto cuya regla es validar todo lo que llega por la URL. **Esa regla existía
+y estaba escrita, para `volver`, con `rutaInterna()`.** Para los avisos faltaba,
+y faltaba en las doce.
+
+**Once de los doce sitios eran de septiembre y octubre.** El doceavo lo agregué
+yo esta semana copiando el patrón de los que ya estaban, que es exactamente cómo
+se propaga esta clase de cosa: el patrón se ve consistente, así que se repite.
+
+### Una asimetría que uno supone cubierta
+
+La protección de CSRF de Next —comparar `Origin` con `Host`— **cubre las Server
+Actions y no los Route Handlers**. Medido con el mismo `Origin` ajeno:
+
+```
+POST /contacto        (Server Action)   500, rechazado
+POST /api/v1/mensajes (Route Handler)   201, aceptado
+```
+
+A los endpoints con sesión no les importa: la cookie es `SameSite=Lax` y no
+viaja en un POST de otro sitio. El expuesto era el único sin sesión, que además
+aceptaba pedidos **sin `Content-Type`**.
+
+`docs/seguridad.md` no mentía —la lista citaba `server-actions.md`— pero era
+**incompleta en un tema donde lo incompleto se lee como cubierto**.
+
+### Un invariante que acertó la mitad
+
+E18 afirmaba que el registro sin JavaScript **crea la cuenta**, y ese invariante
+estaba elegido a propósito para sobrevivir a que se activara "Confirm email".
+Sobrevivió a eso y no a lo que vino con eso: con la confirmación activada, un
+alta a una dirección **no entregable** devuelve 500 y **Supabase deshace el
+alta**. La prueba usa un dominio `.invalid` para no mandarle correo a nadie, así
+que su invariante pasó a ser imposible.
+
+**Elegir un invariante es apostar sobre qué va a cambiar.** La apuesta acertó el
+cambio de pantalla y no que el envío de correo se volviera una precondición del
+alta.
+
+### Y tres errores míos durante la revisión, porque también cuentan
+
+1. **Una colisión de nombres.** Agregué al arnés una función `limpiar()` y el
+   arnés ya tenía una `limpiar()`: la del `trap` que apaga el Postgres
+   descartable. La mía la redefinió, así que al salir se corría lo mío y el
+   Postgres quedaba encendido.
+2. **Un `sed` que se comía un casteo.** El reemplazo dejaba `array[]` sin tipo y
+   Postgres cortaba con "cannot determine type of empty array". Pasaba solo
+   cuando la lista quedaba vacía, que es un caso que ocurre de verdad.
+3. **Detectores groseros, otra vez.** Un chequeo de "ninguna pantalla escribe en
+   `lista_espera`" encontró un **comentario** que explica que esa tabla no se
+   usa. Es la cuarta vez en la semana. Y mi medición del ancho de línea contó
+   bytes en vez de caracteres, así que los acentos inflaban el número.
+
+Las tres salieron a la luz porque algo verificaba el resultado, no porque las
+mirara con atención.
+
 ## Dónde falló y dónde no
 
 Las entradas de arriba cuentan episodios sueltos. Mirándolas juntas aparece un

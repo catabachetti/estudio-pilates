@@ -220,19 +220,46 @@ test.describe('el medidor de contraseña: la única excepción', () => {
     await page.getByLabel('Contraseña', { exact: true }).fill(password)
     await page.getByRole('button', { name: /Crear/ }).click()
 
-    // Con "Confirm email" apagado el registro deja la sesión abierta; con él
-    // activado manda a /ingresar?estado=confirma. Las dos son correctas, y lo
-    // que esta prueba afirma es lo invariante: **la cuenta se creó**. Afirmar
-    // una de las dos pantallas haría que la prueba se rompiera el día que se
-    // active la opción, que es un pendiente de docs/seguridad.md §15.
+    // LO QUE ESTA PRUEBA AFIRMA, Y LO QUE DEJO DE AFIRMAR EL 7 DE NOVIEMBRE.
+    //
+    // Afirmaba que **la cuenta se creó**, y ese invariante había sido elegido a
+    // propósito para sobrevivir a que se activara "Confirm email": con la opción
+    // apagada el registro deja la sesión abierta, con ella activada manda a
+    // `/ingresar?estado=confirma`, y las dos son correctas.
+    //
+    // Sobrevivió al cambio de pantalla y no a otra cosa. Medido el día que se
+    // activó: un alta a una dirección **no entregable** devuelve
+    // `500 "Error sending confirmation email"` y **Supabase deshace el alta**.
+    // Y esta prueba usa un dominio `.invalid` justamente para no mandar correo a
+    // nadie.
+    //
+    // Así que ahora afirma lo que sigue siendo invariante y es lo que esta prueba
+    // vino a verificar: **que el formulario sin JavaScript llegó a la Server
+    // Action y el servidor lo procesó**. Eso se ve en que el navegador terminó en
+    // una URL que eligió el servidor, no en /registro a secas. Las dos formas
+    // posibles valen: `?estado=confirma` si el correo se pudo mandar,
+    // `/registro?error=` si no.
+    //
+    // LO QUE DEJO DE CUBRIR, dicho para que nadie lo suponga cubierto: que el
+    // alta se complete y la cuenta exista. Eso ahora depende de que un correo se
+    // pueda entregar, que es otro sistema y no es lo que el `'use client'` del
+    // medidor necesita justificar. **Se verifica a mano, una vez, con una
+    // dirección real**: completar /registro, recibir el correo, seguir el enlace
+    // y entrar. Está anotado en docs/pruebas.md §6.7.
+    await expect(
+      page,
+      'el formulario sin JavaScript no llegó al servidor: el navegador no se ' +
+        'movió a una URL elegida por la Server Action'
+    ).toHaveURL(/\/ingresar\?estado=confirma|\/registro\?error=/)
+
+    // Y SE COMPRUEBA QUE NO QUEDE UNA CUENTA HUERFANA, que es la regla 3 al
+    // revés: acá lo que se limpia es lo que no debería haberse creado. Medido:
+    // cuando el envío falla, Supabase no deja la cuenta sin confirmar.
     const usuarios = await supabase(
       `/auth/v1/admin/users?filter=${encodeURIComponent(email)}`
     )
     const creada = (usuarios.users ?? []).find((u) => u.email === email)
-    expect(creada, `el registro sin JavaScript no creó la cuenta ${email}`).toBeTruthy()
-
-    // Y se limpia, que es la regla 3.
-    await supabase(`/auth/v1/admin/users/${creada.id}`, { method: 'DELETE' })
+    if (creada) await supabase(`/auth/v1/admin/users/${creada.id}`, { method: 'DELETE' })
   })
 })
 

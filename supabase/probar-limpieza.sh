@@ -108,11 +108,43 @@ echo "  reserva de cuenta de prueba en clase real: $(q -tAc "
   join clases c on c.id = r.clase_id
   where u.email like '%+%' and c.fecha < date '2027-01-01' and r.credito_id is not null;")"
 
-echo "=== 1. el freno: una reserva de cuenta real en una clase de 2027 ==="
+# LAS CLASES DE PRUEBA SE PASAN POR ID, que es lo que el script pide desde el
+# 7 de noviembre de 2026. Antes las identificaba por `fecha >= 2027` y ese dia el
+# seed empezo a generar clases el 2027-01-01: el predicado se habria llevado 7
+# clases reales. El historial esta en el encabezado del .sql.
+#
+# Este ayudante hace lo que haria una persona: leer la seccion 1 y pegar los ids
+# en el `declare`. Las de prueba son las dos que fabrica este arnes, a las 03:51.
+ids_de_prueba() {
+  q -tAc "select coalesce(string_agg(quote_literal(id), ', '), '')
+          from clases where hora = time '03:51';"
+}
+# NO se llama `limpiar`: ese nombre ya lo usa la funcion del `trap` de arriba,
+# que apaga Postgres y borra el directorio temporal. Redefinirla hacia que al
+# salir el arnes corriera esto en vez de la limpieza, dejando el Postgres
+# descartable encendido.
+correr_limpieza() {  # correr_limpieza <archivo-donde-guardar-los-errores>
+  # EL CASTEO SE CONSERVA EN EL REEMPLAZO. La primera version lo comia, y con la
+  # lista vacia generaba `array[]`, que Postgres rechaza con "cannot determine
+  # type of empty array". Y la lista queda vacia de verdad: el caso 1b ya borro
+  # las clases de prueba, porque la seccion 2 del script corre antes que la 2.5.
+  sed "s|array\[\]::uuid\[\]|array[$(ids_de_prueba)]::uuid[]|" \
+    "$P/limpiar-datos-de-prueba.sql" > "$D/limpiar.sql"
+  q -q -f "$D/limpiar.sql" > /dev/null 2>"$1"
+}
+
+# Cuantas clases del SEED caen en 2027, para afirmar al final que siguen ahi. El
+# numero depende del dia en que se corra —del 6 de noviembre en adelante es
+# mayor que cero— asi que no se afirma el valor, se afirma que no cambio.
+SEED_2027_ANTES=$(q -tAc "select count(*) from clases
+                          where fecha >= date '2027-01-01' and extract(minute from hora) = 0;")
+echo "  clases del seed que caen en 2027: $SEED_2027_ANTES"
+
+echo "=== 1. el freno: una reserva de cuenta real en una clase de prueba ==="
 q -q -c "insert into reservas (user_id, clase_id)
          select (select id from auth.users where email = 'estudio@ejemplo.com'),
                 (select id from clases where fecha = date '2027-06-02');"
-if q -q -f "$P/limpiar-datos-de-prueba.sql" > /dev/null 2>"$D/err.txt"; then
+if correr_limpieza "$D/err.txt"; then
   echo "  FALLO: no freno, borro igual"; exit 1
 fi
 # NO ALCANZA CON QUE FALLE. La primera version de esta prueba dio "freno bien"
@@ -122,9 +154,9 @@ if ! grep -q 'No se borra nada' "$D/err.txt"; then
   echo "  FALLO: corto, pero por otro motivo:"; sed 's/^/    /' "$D/err.txt"; exit 1
 fi
 grep -o 'Hay .*No se borra nada\.' "$D/err.txt" | sed 's/^/  /'
-[ "$(q -tAc "select count(*) from clases where fecha >= date '2027-01-01';")" = "2" ] \
+[ "$(q -tAc "select count(*) from clases where hora = time '03:51';")" = "2" ] \
   || { echo "  FALLO: borro algo igual"; exit 1; }
-echo "  y las dos clases de 2027 siguen ahi"
+echo "  y las dos clases de prueba siguen ahi"
 
 echo "=== 1b. el otro freno: una reserva hecha con un credito del pago de prueba ==="
 # reservas.credito_id no tiene accion de borrado, asi que Postgres se negaria
@@ -136,8 +168,8 @@ q -q -c "insert into reservas (user_id, clase_id, credito_id)
                  where m.mp_payment_id = '186232108573' limit 1);"
 # Se saca la reserva ajena de la clase de 2027 para que NO corte el freno anterior
 # y se vea cortar este.
-q -q -c "delete from reservas where clase_id in (select id from clases where fecha >= date '2027-01-01');"
-if q -q -f "$P/limpiar-datos-de-prueba.sql" > /dev/null 2>"$D/err2.txt"; then
+q -q -c "delete from reservas where clase_id in (select id from clases where hora = time '03:51');"
+if correr_limpieza "$D/err2.txt"; then
   echo "  FALLO: no freno, borro un credito que una reserva usaba"; exit 1
 fi
 if ! grep -q 'reservas.credito_id no deja borrar' "$D/err2.txt"; then
@@ -152,8 +184,8 @@ q -q -c "delete from reservas;"
 
 echo "=== 2. sin esa reserva ajena, el borrado completo ==="
 q -q -c "delete from reservas where user_id = (select id from auth.users where email = 'estudio@ejemplo.com');"
-q -q -f "$P/limpiar-datos-de-prueba.sql" > /dev/null
-for par in "select count(*) from clases where fecha >= date '2027-01-01'|clases de 2027" \
+correr_limpieza "$D/err3.txt"
+for par in "select count(*) from clases where hora = time '03:51'|clases de prueba" \
            "select count(*) from reservas|reservas" \
            "select count(*) from creditos where user_id in (select id from auth.users where email like '%+%@%')|creditos de prueba" \
            "select count(*) from compras where user_id in (select id from auth.users where email like '%+%@%')|compras de prueba" \
@@ -170,5 +202,17 @@ done
 AHORA=$(q -tAc "select count(*) from clases;")
 printf '  %-22s %s' "clases reales" "$AHORA"
 [ "$AHORA" = "$REALES" ] && echo "  ok, intactas" || { echo "  FALLO: eran $REALES"; exit 1; }
+
+echo
+echo "=== 3. EL CASO QUE ESTE ARNES ENCONTRO: las clases del seed en 2027 ==="
+# Del 6 de noviembre de 2026 en adelante el seed genera clases el 2027-01-01,
+# porque va de current_date a current_date + 55. Con el predicado viejo
+# —`fecha >= 2027`— el script se las llevaba. Esto lo afirma por separado del
+# conteo total de arriba, porque es el caso concreto que fallo.
+SEED_2027_DESPUES=$(q -tAc "select count(*) from clases
+                            where fecha >= date '2027-01-01' and extract(minute from hora) = 0;")
+printf '  clases del seed en 2027: antes %s, despues %s' "$SEED_2027_ANTES" "$SEED_2027_DESPUES"
+[ "$SEED_2027_ANTES" = "$SEED_2027_DESPUES" ] && echo "  ok, intactas" \
+  || { echo "  FALLO: el script se llevo clases del seed"; exit 1; }
 echo
 echo "TODO OK"
