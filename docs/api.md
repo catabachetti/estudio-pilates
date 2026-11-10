@@ -84,9 +84,11 @@ producción: un aviso firmado devolvió
 la cuenta. Tiene su propia sección, la 14.
 
 Lo que **no** se hizo, justamente para no decorar: inventar un consumidor.
-No hay un `'use client'` nuevo llamando a `fetch` para poder decir que la API
-se usa. La única excepción de `'use client'` del proyecto sigue siendo el
-medidor de contraseña, y está argumentada en `CLAUDE.md`.
+El único `'use client'` que llama a `fetch` es el formulario de contacto, y no
+está para poder decir que la API se usa: está porque el formulario necesita
+mostrar los tres estados de una petición en curso sin navegar, que es lo que
+pide el módulo 6 del curso. Las tres excepciones de `'use client'` del
+proyecto están argumentadas en `CLAUDE.md`.
 
 ---
 
