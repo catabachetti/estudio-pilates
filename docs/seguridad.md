@@ -88,10 +88,23 @@ POST /auth/v1/signup con un correo ya registrado
 ```
 
 Ese endpoint es público y alcanzable con la clave publishable, así que la fuga
-existe aunque nuestro formulario esté bien hecho. **Se cierra activando "Confirm
-email"** en el panel, que hace que Supabase conteste igual exista o no la
-cuenta. Hoy está apagado a propósito, para no bloquear las cuentas de prueba
-mientras se desarrolla; hay que activarlo antes de la entrega.
+existía aunque nuestro formulario estuviera bien hecho. **Se cerró activando
+"Confirm email"** en el panel, el 7 de noviembre de 2026. Medido después, con un
+correo que ya tiene cuenta:
+
+```
+POST /auth/v1/signup con un correo ya registrado
+  -> 200  un usuario con "identities": []   (sin user_already_exists)
+```
+
+Supabase devuelve un usuario de mentira sin identidades en vez de decir que la
+cuenta existe, así que la respuesta ya no distingue los dos casos.
+
+Con un matiz que conviene conocer: un alta a una dirección **no entregable**
+devuelve `500 "Error sending confirmation email"`. Eso no reabre la fuga —con
+una dirección real los dos casos dan 200—, pero sí significa que **probar si una
+dirección real existe le manda a esa persona un correo de confirmación**, y eso
+es inherente al diseño.
 
 ### 2.2 Fortaleza de contraseña
 
@@ -752,8 +765,9 @@ hashes viejos, con su propio costo.
 
 **El bloqueo de ingreso protege el formulario, no el endpoint.** Ver 3.2.
 
-**La fuga de `user_already_exists` sigue abierta** hasta que se active "Confirm
-email". Ver 2.1.
+**La fuga de `user_already_exists` se cerró** al activar "Confirm email", el 7 de
+noviembre de 2026. Medido: un alta con un correo existente devuelve 200 con
+`identities: []`. Ver 2.1.
 
 ---
 

@@ -374,7 +374,8 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   3. **Lo que se crea, se borra**, en el teardown del fixture.
 - **Una cuenta nueva por corrida**, creada con `POST /auth/v1/admin/users` y
   `email_confirm: true`, borrada al terminar. Así funciona igual con "Confirm
-  email" activado o apagado, que es un pendiente de `docs/seguridad.md` §15.
+  email" activado o apagado, y **no depende de que se pueda mandar un correo**:
+  con Resend sin dominio verificado, el correo solo llega a una dirección.
 - **Sin reintentos.** `retries: 0`: un reintento convierte una prueba inestable
   en una que "pasa a veces".
 - **Los tres motores solo donde pagan**: las pruebas sin estado y las sin

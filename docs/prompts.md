@@ -1358,6 +1358,66 @@ rojo", apuntar a **pasos cuyo fallo todavía no se vio**. El `build` de dos jobs
 el último arnés de `base` ya se vieron cortar; lo que faltaba era un paso de
 pruebas unitarias, un arnés del medio y un arnés del webhook.
 
+### La tercera causa, que las dos primeras tapaban
+
+Con el build arreglado, el job del webhook llegó al paso 7 y falló ahí.
+`probar-webhook-dos-claves.sh` pasa en esta Mac y fallaba en el runner.
+
+El arnés reusaba el puerto 3001 para los cuatro casos y mataba al servidor
+anterior buscándolo con **`lsof`**, que en macOS vive en `/usr/sbin` y en un
+runner no está garantizado. Y cuando no está, **el arnés no se da cuenta**: no
+mata nada, el `next start` nuevo no puede tomar el puerto, y el curl de espera
+igual contesta —contesta el servidor **viejo**— así que sigue adelante y prueba
+un servidor con otras claves.
+
+**Es un arnés que mide otra cosa**, el tipo (a) de la clasificación del módulo
+13. Y falló ruidosamente **por casualidad**: los cuatro casos esperan códigos
+distintos. Con dos casos de expectativa igual habría pasado en verde midiendo
+nada.
+
+Reproducido escondiendo `/usr/sbin` del `PATH`: el caso A pasa entero y los
+otros tres fallan contra las claves del A. El arreglo no fue instalar `lsof`
+—eso habría dejado la fragilidad intacta y escondida— sino **un puerto por
+caso**: no hay nada que matar, y si un servidor no atiende, el arnés corta.
+
+### Y una espera que nunca tenía éxito, en ningún lado
+
+Arreglando lo anterior apareció esto, que es peor porque era silencioso. La
+espera de "servidor listo" era `curl -sf`, y **`-f` hace fallar a curl con
+cualquier código >= 400**. En el CI el sitio corre sin variables de Supabase, así
+que **todas** las páginas contestan 500 al atenderse. Medido:
+
+```
+curl -sf  contra un servidor que contesta 500   -> 22    (parece caído)
+curl -s   contra el mismo                       -> 0     (hay servidor)
+curl -s   contra un puerto cerrado              -> 7     (no hay servidor)
+```
+
+El paso 6 del workflow **funcionaba por suerte**: gastaba los 60 segundos de
+espera completos y seguía igual, y el arnés solo necesita que el servidor
+atienda. Era una inestabilidad esperando el día en que `next start` tardara más
+de un minuto.
+
+Efecto medible del arreglo: el arnés pasa de gastar 240 segundos de espera
+inútil a terminar en **4**.
+
+### Los tres fallos eran el mismo error
+
+| | La medición decía | Lo que medía de verdad |
+| --- | --- | --- |
+| El build | "compila sin variables de entorno" | compila con `.env.local`, que `env -i` no borra |
+| El arnés | "el servidor de este caso contesta X" | el servidor de un caso anterior contestaba X |
+| La espera | "el servidor está listo" | el servidor devuelve menos de 400, que ahí nunca pasa |
+
+**En los tres la comprobación pasaba, y pasar era el problema.** Lo que los
+encontró fue el mismo mecanismo: un entorno donde los supuestos no se cumplen.
+Un runner limpio no comparte el `.env.local`, ni los binarios de macOS, ni el
+servidor de la corrida anterior.
+
+Y es la respuesta concreta a "¿para qué sirve un CI si ya probé todo en mi
+máquina?": **no corre otras pruebas, corre las mismas en otro lado**, y la
+diferencia entre los dos lados es donde viven estos errores.
+
 ### La contraprueba, con el paso predicho de antemano
 
 Tres regresiones **reales en código real**, una por job, y las tres son errores

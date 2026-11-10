@@ -84,12 +84,13 @@ async function supabase(ruta, opciones = {}) {
 //                               la siguiente, y la suite empieza a fallar por
 //                               orden de ejecución.
 //
-//   registrarse por el          docs/seguridad.md §15 tiene pendiente activar
-//   formulario                  "Confirm email". Hoy el registro deja la cuenta
-//                               usable al instante; el día que se active deja
-//                               de hacerlo y toda la suite se cae de golpe. Y
-//                               Resend solo envía a una dirección verificada,
-//                               así que el correo no se puede leer.
+//   registrarse por el          con "Confirm email" activado el alta necesita
+//   formulario                  mandar un correo, y Resend sin dominio
+//                               verificado solo lo entrega a UNA dirección:
+//                               medido, un alta a cualquier otra devuelve 500
+//                               y no crea la cuenta. Con la opción apagada, el
+//                               registro deja la cuenta usable al instante. La
+//                               suite no puede depender de cuál de las dos.
 //
 // `email_confirm: true` crea la cuenta ya confirmada y sin mandar correo, así
 // que esto funciona igual con Confirm email activado o apagado.

@@ -420,7 +420,7 @@ implementación que vale: el `if` de un job **no puede leer el contexto
 
 **El pipeline que corre en cada push no usa ninguno, y eso es un resultado, no
 una omisión:** nada de lo que se ejecuta ahí toca un servicio externo. El build
-no necesita la base (§15), los arneses levantan su propio Postgres, y el webhook
+no necesita la base (§16), los arneses levantan su propio Postgres, y el webhook
 se prueba con claves inventadas.
 
 El job manual los usa con la sintaxis que corresponde, `${{ secrets.NOMBRE }}`,
@@ -574,10 +574,12 @@ Dos de los cuatro pasaron en este proyecto, y los dos los resuelve este módulo.
 
 ---
 
-## 16. Apéndice: un error de método
+## 16. Apéndice: dos errores de método
 
-Vale escribirlo porque no fue un error de código y porque la clase de error se
-repite.
+Valen escribirlos porque ninguno fue un error de código, y porque los dos son
+la misma clase de error: **una medición que no medía lo que decía medir.**
+
+### Primero: el build que "andaba sin variables"
 
 El plan de este módulo afirmaba, como cosa medida:
 
@@ -635,3 +637,80 @@ ninguna.
 en duda: `base` llegó al paso 11, o sea que la búsqueda portable de Postgres
 funciona en `ubuntu-latest` y los **seis** arneses anteriores pasaron ahí,
 carrera por el último lugar incluida.
+
+### Segundo: un arnés que medía otro servidor
+
+Con el build arreglado, el job del webhook llegó al paso 7 y falló ahí.
+`probar-webhook-dos-claves.sh` pasa en esta Mac y fallaba en el runner.
+
+El arnés levanta el sitio cuatro veces, una por combinación de claves, y
+**reusaba el puerto 3001**: antes de cada caso buscaba al servidor anterior con
+`lsof` para matarlo. Dos problemas, y el segundo no es un problema de CI:
+
+1. **`lsof` no está garantizado en un runner.** En macOS vive en `/usr/sbin`.
+2. **Cuando no está, el arnés no se da cuenta.** No mata nada, el `next start`
+   nuevo no puede tomar el puerto ocupado... y el curl de espera **igual
+   contesta**, porque contesta el servidor **viejo**. El arnés sigue adelante y
+   prueba un servidor con otras claves, sin avisar.
+
+Lo segundo es **un arnés que mide otra cosa**, que es el tipo (a) de la
+clasificación de `docs/pruebas.md` y el peor tipo de prueba que existe: no da
+error, da una respuesta sobre otra pregunta.
+
+**Falló ruidosamente por casualidad**, porque los cuatro casos esperan códigos
+distintos. Con dos casos de expectativa igual habría pasado en verde midiendo
+nada.
+
+Reproducido escondiendo `/usr/sbin` del `PATH`: el caso A pasa entero y los
+otros tres fallan contra las claves del A, cinco casos mal.
+
+**Lo que no se pudo confirmar** es si `ubuntu-latest` trae `lsof`. Los logs del
+job piden autenticación y la
+[documentación de los runners](https://docs.github.com/en/actions/how-tos/manage-runners/github-hosted-runners/customize-runners)
+no publica la lista de paquetes en una página legible desde acá. **El arreglo no
+depende de esa respuesta**, y tampoco era instalar `lsof`: ahora va **un puerto
+por caso**, no hay nada que matar, y si un servidor no atiende el arnés corta
+con el registro a la vista.
+
+### Y lo que apareció al arreglarlo: una espera que nunca tenía éxito
+
+La espera de "servidor listo" era `curl -sf`, y **`-f` hace fallar a curl con
+cualquier código HTTP >= 400**. En el CI el sitio corre **sin variables de
+Supabase**, así que todas las páginas contestan 500 al atenderse. Medido:
+
+```
+curl -sf  contra un servidor que contesta 500   -> 22    (parece caído)
+curl -s   contra el mismo                       -> 0     (hay servidor)
+curl -s   contra un puerto cerrado              -> 7     (no hay servidor)
+```
+
+**Con `-f`, curl confunde "servidor que contesta 500" con "no hay servidor".**
+
+El paso 6 del workflow funcionaba **por suerte**: gastaba los 60 segundos
+completos de espera y seguía igual, y el arnés solo necesita que el servidor
+atienda, no que devuelva 200. Pero era una inestabilidad esperando el día en que
+`next start` tardara más de 60 segundos: los 13 casos fallarían con errores de
+conexión, y el síntoma no se parece en nada a la causa.
+
+Los tres `curl -sf` del repositorio eran los de estas dos esperas. Ahora van sin
+`-f` y con un freno que corta en vez de seguir.
+
+**El efecto medible del arreglo:** el arnés de las dos claves pasa de gastar 240
+segundos de espera inútil a terminar en **4**.
+
+### Lo que las dos comparten
+
+| | La medición decía | Lo que medía de verdad |
+|---|---|---|
+| El build | "compila sin variables de entorno" | compila con `.env.local`, que `env -i` no borra |
+| El arnés | "el servidor de este caso contesta X" | el servidor de un caso anterior contestaba X |
+| La espera | "el servidor está listo" | el servidor devuelve menos de 400, que acá nunca pasa |
+
+En los tres casos la comprobación **pasaba**, y pasar era el problema. Lo que
+los encontró fue el mismo mecanismo: **un entorno donde los supuestos no se
+cumplen**. Un runner limpio no comparte el `.env.local`, ni los binarios de
+macOS, ni el servidor de la corrida anterior.
+
+Y eso es la respuesta concreta a para qué sirve un CI cuando uno ya probó todo
+en su máquina: **no corre las mismas pruebas, corre las mismas pruebas en otro
+lado**, y la diferencia entre los dos lados es donde viven estos errores.
