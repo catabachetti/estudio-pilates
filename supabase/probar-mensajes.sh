@@ -104,7 +104,7 @@ afirmar "nada se guardo de los tres" "1" "$(q -c 'select count(*) from mensajes;
 
 echo
 echo "=== 4. El limite por correo ==="
-# Ana ya mando uno en el caso 2. Faltan cuatro para llegar a cinco.
+# Ana ya mando uno en la seccion 2. Faltan cuatro para llegar a cinco.
 for i in 2 3 4 5; do
   R=$(enviar 'Ana Perez' 'ana@ejemplo.com' "Mensaje numero $i, con largo suficiente para pasar.")
   [ "$R" = "ok" ] || { echo "  MAL  el mensaje $i tendria que haber entrado y dio $R"; fallo=1; }

@@ -16,7 +16,7 @@ import { test, expect } from './fixtures'
 // el HTML no es tan semántico como el proyecto afirma.
 
 test.describe('navegación pública', () => {
-  // Caso 1. La prueba de humo: si esto falla, no tiene sentido mirar el resto.
+  // E1. La prueba de humo: si esto falla, no tiene sentido mirar el resto.
   const secciones = [
     { enlace: 'Clases', ruta: '/clases', titulo: 'Nuestras clases' },
     { enlace: 'Paquetes', ruta: '/paquetes', titulo: 'Paquetes' },
@@ -42,7 +42,7 @@ test.describe('navegación pública', () => {
 })
 
 test.describe('reservar sin sesión', () => {
-  // Caso 2. El circuito de `volver`: lo que convierte el login en una
+  // E2. El circuito de `volver`: lo que convierte el login en una
   // redirección abierta si se rompe. `rutaInterna()` lo valida del lado del
   // servidor; esto comprueba que el enlace lo arme bien y que el destino
   // sobreviva al ingreso.
@@ -124,7 +124,7 @@ test.describe('reservar sin sesión', () => {
 })
 
 test.describe('rutas protegidas', () => {
-  // Caso 3. 401 y 403 no son lo mismo, que es la distinción que organiza toda
+  // E3. 401 y 403 no son lo mismo, que es la distinción que organiza toda
   // la autorización del proyecto. Sin sesión no sabemos quién es: se lo manda
   // a ingresar guardando el destino. Con sesión y sin permiso se muestra "sin
   // permiso" y NO se redirige, porque volver a entrar con la misma cuenta da
@@ -151,7 +151,7 @@ test.describe('rutas protegidas', () => {
 })
 
 test.describe('página no encontrada', () => {
-  // Caso 4. El 404 propio, que reemplazó al de Next —en inglés y con fondo
+  // E4. El 404 propio, que reemplazó al de Next —en inglés y con fondo
   // negro— y que nada cubría.
   test('una ruta inventada da el 404 del sitio, en castellano', async ({ page }) => {
     const respuesta = await page.goto('/esta-ruta-no-existe-nunca')
@@ -174,7 +174,7 @@ test.describe('página no encontrada', () => {
 })
 
 test.describe('los botones de Comprar quedan al pie de su tarjeta', () => {
-  // Caso 15. LA UNICA PRUEBA GEOMETRICA DE LA SUITE, y conviene decir por qué
+  // E19. LA UNICA PRUEBA GEOMETRICA DE LA SUITE, y conviene decir por qué
   // existe y por qué está escrita así.
   //
   // El bug: el botón COMPRAR de "8 clases" quedaba más abajo que los otros

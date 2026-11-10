@@ -10,7 +10,7 @@ import { test, expect, acreditar, claseConLugar } from './fixtures'
 // anterior.
 
 test.describe('ingresar', () => {
-  // Caso 5. Un requisito de seguridad, no de usabilidad: el mensaje tiene que
+  // E5. Un requisito de seguridad, no de usabilidad: el mensaje tiene que
   // ser el mismo exista la cuenta o no. Si dijera "esa cuenta no existe",
   // cualquiera podría averiguar quién está registrado probando correos.
   test('con la contraseña mal, el mensaje no dice si el correo existe', async ({
@@ -37,7 +37,7 @@ test.describe('ingresar', () => {
     await expect(page.getByRole('alert')).toHaveText(texto.trim())
   })
 
-  // Caso 6. El camino que habilita todo lo demás.
+  // E6. El camino que habilita todo lo demás.
   test('con la contraseña bien, llega a su cuenta', async ({ paginaCliente }) => {
     await paginaCliente.getByRole('link', { name: 'Mi cuenta' }).click()
     await expect(paginaCliente.getByRole('heading', { level: 1 })).toHaveText('Mi cuenta')
@@ -51,7 +51,7 @@ test.describe('ingresar', () => {
 })
 
 test.describe('comprar', () => {
-  // Caso 7. El bloque "Te faltan créditos" aparece DESPUES de intentar
+  // E7. El bloque "Te faltan créditos" aparece DESPUES de intentar
   // reservar, no al entrar a la agenda.
   //
   // La primera versión de esta prueba lo buscaba nada más entrar a /reservar y
@@ -80,7 +80,7 @@ test.describe('comprar', () => {
     await expect(paginaCliente.getByRole('heading', { level: 1 })).toHaveText('Paquetes')
   })
 
-  // Caso 8. LO UNICO VERIFICABLE DEL CHECKOUT.
+  // E8. LO UNICO VERIFICABLE DEL CHECKOUT.
   //
   // El sitio de Mercado Pago no se automatiza: es de terceros, tiene su propio
   // login, su antifraude y cambia sin avisarnos. Una prueba que intentara pagar
@@ -122,7 +122,7 @@ test.describe('comprar', () => {
 })
 
 test.describe('reservar y cancelar', () => {
-  // Caso 9. El ciclo completo del negocio, y lo único que prueba que la
+  // E9. El ciclo completo del negocio, y lo único que prueba que la
   // pantalla refleje lo que la base decidió.
   //
   // Los créditos se acreditan llamando a `otorgar_creditos()`, la MISMA función

@@ -18,7 +18,7 @@ import { test, expect, acreditar, claseConLugar, supabase } from './fixtures'
 // que está en los proyectos de playwright.config.js y no acá dentro.
 
 test.describe('el sitio se recorre sin JavaScript', () => {
-  // PRIMERO: CONFIRMAR QUE DE VERDAD ESTA APAGADO.
+  // E14. PRIMERO: CONFIRMAR QUE DE VERDAD ESTA APAGADO.
   //
   // Sin esto, toda la especificación podría estar corriendo CON JavaScript y
   // pasar igual, que es el falso verde más fácil de no ver: una suite llamada
@@ -69,7 +69,7 @@ test.describe('el sitio se recorre sin JavaScript', () => {
 })
 
 test.describe('ingresar sin JavaScript', () => {
-  // Caso 12. El formulario de ingreso es un POST común a una Server Action.
+  // E15. El formulario de ingreso es un POST común a una Server Action.
   // Sin JavaScript, el navegador lo envía solo y Next lo atiende igual.
   test('el formulario de ingreso funciona y abre sesión', async ({
     page,
@@ -120,7 +120,7 @@ test.describe('ingresar sin JavaScript', () => {
 })
 
 test.describe('reservar sin JavaScript', () => {
-  // Caso 13. La Server Action por POST de formulario, que es el camino de
+  // E16. La Server Action por POST de formulario, que es el camino de
   // mejora progresiva. Es la prueba que más vale de esta especificación: una
   // reserva es una escritura con un candado en la base, y funciona sin una
   // línea de JavaScript en el navegador.
@@ -172,7 +172,7 @@ test.describe('reservar sin JavaScript', () => {
 })
 
 test.describe('el medidor de contraseña: la única excepción', () => {
-  // Caso 14. ESTE ES EL CASO QUE JUSTIFICA LA EXCEPCION DE 'use client'.
+  // E17 y E18. ESTE ES EL CASO QUE JUSTIFICA LA EXCEPCION DE 'use client'.
   //
   // CLAUDE.md dice que el medidor es un agregado y no una dependencia: con
   // JavaScript apagado el componente se renderiza en el servidor y queda un
@@ -257,7 +257,7 @@ test.describe('el medidor de contraseña: la única excepción', () => {
 })
 
 test.describe('el formulario de contacto: la condición de la segunda excepción', () => {
-  // Caso 18. LA PRUEBA QUE HABILITA AL COMPONENTE DE CLIENTE.
+  // E22. LA PRUEBA QUE HABILITA AL COMPONENTE DE CLIENTE.
   //
   // `FormularioDeContacto.jsx` es el segundo `'use client'` del proyecto, y su
   // `fetch` **es funcional**: es el camino por el que se manda el mensaje. Eso

@@ -40,7 +40,7 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   vuelve a ser un agregado.
 
   **El respaldo no es un extra: es la condición.** Si deja de funcionar, el
-  componente no corresponde, y la prueba que lo vigila es el caso 18 de
+  componente no corresponde, y la prueba que lo vigila es E22, en
   `e2e/sin-javascript.spec.js`.
 
   Que los dos puedan convivir está **medido**, con su control: `preventDefault()`
@@ -407,10 +407,10 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   CAPTCHA, descartado a propósito (ver `docs/seguridad.md`).
 - **Los largos están en dos lados que no se pueden importar entre sí:**
   `app/lib/esquemas.js` y la función de la migración 014. Es la única
-  duplicación conocida del proyecto, y lo que impide que se separen es el caso 8
-  de `supabase/probar-mensajes.sh`, que **lee las constantes del archivo de
-  JavaScript** y prueba la función en los bordes. Si cambia uno de los dos, ese
-  arnés falla.
+  duplicación conocida del proyecto, y lo que impide que se separen es la
+  sección 8 de `supabase/probar-mensajes.sh`, que **lee las constantes del
+  archivo de JavaScript** y prueba la función en los bordes. Si cambia uno de
+  los dos, ese arnés falla.
 - **`/privacidad` menciona los mensajes de contacto.** Si algún día se empieza a
   guardar la IP o cualquier dato nuevo, esa página tiene que decirlo: hoy afirma
   textualmente que no se guarda la dirección IP.

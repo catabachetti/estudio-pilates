@@ -356,7 +356,7 @@ camino funcional es el formulario nativo y el `fetch` vuelve a ser un agregado,
 como la barra del medidor.
 
 **El respaldo no es un extra: es la condición.** Si deja de funcionar, el
-componente no corresponde. Por eso la prueba que lo verifica —caso 18 de
+componente no corresponde. Por eso la prueba que lo verifica —E22, en
 `e2e/sin-javascript.spec.js`— no es una prueba más: es la que habilita al
 componente.
 

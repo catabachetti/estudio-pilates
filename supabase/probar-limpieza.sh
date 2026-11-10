@@ -126,8 +126,9 @@ ids_de_prueba() {
 correr_limpieza() {  # correr_limpieza <archivo-donde-guardar-los-errores>
   # EL CASTEO SE CONSERVA EN EL REEMPLAZO. La primera version lo comia, y con la
   # lista vacia generaba `array[]`, que Postgres rechaza con "cannot determine
-  # type of empty array". Y la lista queda vacia de verdad: el caso 1b ya borro
-  # las clases de prueba, porque la seccion 2 del script corre antes que la 2.5.
+  # type of empty array". Y la lista queda vacia de verdad: la seccion 1b de
+  # este arnes ya borro las clases de prueba, porque la seccion 2 del script
+  # corre antes que la 2.5.
   sed "s|array\[\]::uuid\[\]|array[$(ids_de_prueba)]::uuid[]|" \
     "$P/limpiar-datos-de-prueba.sql" > "$D/limpiar.sql"
   q -q -f "$D/limpiar.sql" > /dev/null 2>"$1"
