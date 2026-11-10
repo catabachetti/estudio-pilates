@@ -447,33 +447,63 @@ secreto que deja de importar.
 
 ## 13. La regla de protección de rama
 
-Dos casillas y ningún código. Es lo que convierte "las pruebas corren" en "solo
-código que pasa pruebas llega a producción".
+Ningún código: es un *ruleset* de GitHub. Es lo que convierte "las pruebas
+corren" en "solo código que pasa pruebas llega a producción".
+
+**Está armada como ruleset, en Settings → Rules, y no como la protección
+clásica de Settings → Branches.** Las dos pantallas llegan a lo mismo, y hasta
+el 10 de noviembre de 2026 este documento describía la que no se usó. Lo que
+está configurado, leído de la API ese día:
 
 ```
-Settings → Branches → Add branch protection rule
-  Branch name pattern:  main
+Settings → Rules → Rulesets → «main protegida»     creado el 3 de noviembre de 2026
+  Enforcement status:  Active
+  Target branches:     Include default branch (main)
 
+  [x] Restrict deletions                    no se puede borrar main
+  [x] Block force pushes                    no se puede reescribir su historia
   [x] Require a pull request before merging
-  [x] Require status checks to pass before merging
-        buscar y tildar, con estos nombres exactos:
-          estático y unitario
-          reglas de la base
-          contrato con Mercado Pago
+        Required approvals: 0
+  [x] Require status checks to pass
+        estático y unitario
+        reglas de la base
+        contrato con Mercado Pago
+      [ ] Require branches to be up to date before merging
 ```
 
-**Los nombres son los del campo `name:` de cada job, con acento**, no los de la
-clave del YAML (`calidad`, `base`, `webhook`). Solo aparecen en el buscador
-**después** de que el workflow corrió al menos una vez, porque GitHub ofrece los
-checks que ya vio.
+**Las dos primeras protegen a `main` en sí:** que no se pueda borrar, y que un
+push forzado no pueda reescribir commits que ya están ahí, incluidos los que el
+CI aprobó. La documentación anterior no las nombraba, y son parte de lo que la
+regla protege.
 
-**No tildar `E2E contra Supabase (a mano)`.** No corre en los pull requests, así
-que exigirlo haría depender el merge de cómo GitHub cuenta un check salteado, y
-eso no hace falta averiguarlo.
+**Las otras dos se necesitan entre sí.** Los checks sin el pull request no
+sirven, porque un push directo a `main` no pasa por ningún PR y los saltea; y
+el pull request sin los checks deja mergear con el CI en rojo.
 
-**La segunda casilla no es un extra: es lo que hace cierta a la primera.** Exigir
-los checks sin exigir el pull request no sirve de nada, porque un push directo a
-`main` saltea los dos. Por eso prohibir el push directo es parte del mecanismo.
+**Los nombres de los checks son los del campo `name:` de cada job, con
+acento**, no los de la clave del YAML (`calidad`, `base`, `webhook`). Solo
+aparecen en el buscador **después** de que el workflow corrió al menos una vez,
+porque GitHub ofrece los checks que ya vio.
+
+**`E2E contra Supabase (a mano)` no está, a propósito.** No corre en los pull
+requests, así que exigirlo haría depender el merge de cómo GitHub cuenta un
+check salteado, y eso no hace falta averiguarlo.
+
+### Cómo se comprueba sin entrar al panel
+
+```
+curl -s https://api.github.com/repos/catabachetti/estudio-pilates/rules/branches/main
+```
+
+Devuelve las cuatro reglas, con los tres nombres de los checks. Lo que no
+muestra es la lista de excepciones (*bypass*) del ruleset: esa se ve en el
+panel.
+
+**No sirve `GET /repos/catabachetti/estudio-pilates/branches/main`.** Ese
+endpoint mira la protección clásica, y para esta rama contesta
+`"protected": true` con `required_status_checks` en `off` y la lista vacía,
+como si no se exigiera ningún check. Es una herramienta que mide otra cosa que
+la que se cree: el tipo (a) de `docs/pruebas.md` §7.5.
 
 Esta regla la configura la dueña del repositorio; no se puede poner desde el
 código.
