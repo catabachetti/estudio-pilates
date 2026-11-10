@@ -154,8 +154,10 @@ compile, no solo que esté escrito.
 `app/components/CampoDeContrasena.jsx` muestra una barra graduada y una lista de
 las cinco reglas que se van tildando.
 
-Es **la única excepción** a la regla de cero `'use client'` del proyecto, y
-tiene un límite: el medidor es un agregado, no una dependencia.
+Es **la primera de las tres excepciones** a la regla de cero `'use client'` del
+proyecto —las otras dos son el formulario de contacto y `app/error.jsx`, y
+`docs/arquitectura.md` §5 explica cada una—, y tiene un límite: el medidor es
+un agregado, no una dependencia.
 
 **Cómo se verifica.** Con JavaScript desactivado en el navegador, el registro se
 completa igual y crea la cuenta. Queda el campo con su `pattern`, su `minLength`

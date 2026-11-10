@@ -43,7 +43,7 @@ grep -rnE '\balert\(|\bconfirm\(|\bprompt\(' app/   # 0
 
 | grep | da | de verdad hay |
 |---|---|---|
-| `"'use client'"` | 7 archivos | **3 directivas**; los otros cuatro son comentarios que explican por qué *no* la llevan |
+| `"'use client'"` | 8 archivos | **3 directivas**; los otros cinco son comentarios que explican por qué *no* la llevan |
 | `"onSubmit"` | 3 | **1 atributo**; dos son comentarios |
 | `"useEffect"` | 2 | **0 llamadas**; las dos son comentarios de `app/error.jsx` explicando por qué no lo usa |
 

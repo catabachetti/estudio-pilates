@@ -682,12 +682,14 @@ La diapositiva 9 dice que *"depender exclusivamente de `console.log` es una
 práctica primitiva"* y propone el Call Stack y el Scope. **Las dos cosas son
 ciertas y las dos hablan de depurar JavaScript de navegador con DevTools.**
 
-Este proyecto tiene **un solo componente de cliente**: el medidor de fortaleza
-de contraseña. Todo lo demás son Server Components y Server Actions. Así que el
-Call Stack y el Scope de DevTools aplican a **alrededor del 1% del código**, y
-decirlo es más honesto que fingir que se usaron.
+Este proyecto tiene **tres componentes de cliente**: el medidor de fortaleza de
+contraseña, el formulario de contacto y la pantalla de error. Todo lo demás son
+Server Components y Server Actions. Así que el Call Stack y el Scope de DevTools
+aplican a **alrededor del 5% de las líneas de `app/`** —medido el 10 de
+noviembre de 2026: 366 de 7452—, y decirlo es más honesto que fingir que se
+usaron.
 
-**Dónde sí se usaron, que es el único lugar donde se podían usar:** el medidor.
+**Dónde sí se usaron:** el medidor.
 Los breakpoints de `Sources` sirvieron para ver el estado del `useState` mientras
 se escribía, y confirmar que `fortalezaDe()` devolvía el nivel esperado en los
 bordes.
@@ -756,7 +758,7 @@ navegador, así que no aparecen en `Sources`. Depurarlos es lo de 7.1: `curl`,
 |---|---|
 | **Asumir sin verificar** | es el patrón de la sección 7.5, catorce veces |
 | **Abuso de `console.log`** | el caso del webhook es el contrario: ahí es la única herramienta posible, y lo que importa es qué registra |
-| **Ignorar el scope** | no apareció: con un solo componente de cliente, casi no hay scope de navegador donde equivocarse |
+| **Ignorar el scope** | no apareció: con tres componentes de cliente y cuatro `useState` en todo el proyecto, casi no hay scope de navegador donde equivocarse |
 | **No revisar Network cuando el problema es una petición fallida** | apareció **tres veces**, y las tres el dato estaba en una cabecera: el `x-matched-path` del bug #3, el `Set-Cookie` que WebKit descartaba, y el `www-authenticate` que faltaba en el 401 |
 
 ### 7.5 El patrón que más apareció: la herramienta de medición mintiendo

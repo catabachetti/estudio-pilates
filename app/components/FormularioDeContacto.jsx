@@ -15,7 +15,7 @@ import {
   LARGO_MENSAJE,
 } from '../lib/esquemas'
 
-// LA SEGUNDA Y ÚLTIMA EXCEPCIÓN A "CERO 'use client'" DEL PROYECTO.
+// LA SEGUNDA DE LAS TRES EXCEPCIONES A "CERO 'use client'" DEL PROYECTO.
 //
 // La primera es el medidor de contraseña, y su argumento fue que el medidor es
 // un agregado y no una dependencia. ACÁ ESE ARGUMENTO NO ALCANZA, y conviene
