@@ -54,9 +54,10 @@ escriben en la base corren en los tres motores. El total fue 67 → 76 (E19, tre
 anchos por tres motores) → 83 (el formulario de contacto y la sexta pantalla del
 panel) → 84 (E23, el endurecimiento del endpoint público).
 
-**La cuenta de los que pasan cambió dos veces el 7 de noviembre**, y las dos por
-algo que la revisión encontró: E18 dejó de poder afirmar lo que afirmaba —ver
-6.8— y E23 entró nueva.
+**La cuenta de los que pasan se movió entre el 7 y el 10 de noviembre**, y por
+dos cosas que encontraron las revisiones: E23 entró nueva, y E18 pasó tres días
+afirmando algo más débil que no podía detectar un registro roto —ver 6.7—. Hoy
+vuelve a afirmar que la cuenta se crea.
 
 **Las unitarias son pocas a propósito.** Las reglas del negocio de este
 proyecto no viven en funciones de JavaScript: viven en funciones de Postgres.
@@ -219,7 +220,7 @@ el resto del proyecto.
 | E15 | **sin JS** | Cuenta nueva | Ingresar por el formulario | Abre sesión. *Se saltea en WebKit: ver 6.4* |
 | E16 | **sin JS** | Cuenta con 1 crédito | Reservar y cancelar | Funciona entero. *Se saltea en WebKit* |
 | E17 | **sin JS** | — | Abrir `/registro` | El campo trae `minLength`, `pattern`, la lista de reglas y el `<meter>` quieto |
-| E18 | **sin JS** | — | Completar el registro con una dirección `.invalid` | **El navegador termina en una URL que eligió el servidor** —`?estado=confirma` o `/registro?error=`—, o sea que el POST nativo llegó a la Server Action. Ver 6.7: desde el 7 de noviembre **ya no afirma que la cuenta se cree** |
+| E18 | **sin JS** | — | Completar el registro | **La cuenta se crea.** Entre el 7 y el 10 de noviembre afirmó algo más débil, y eso la dejó sin poder detectar un registro roto: ver 6.7 |
 | E19 | anónimo | — | Abrir `/paquetes` a 1280, 1024 y 900px y medir los botones COMPRAR | Los botones de una misma fila **arrancan a la misma altura**, con menos de 0,5px de diferencia |
 | E20 | anónimo | — | En `/contacto`: enviar con el mensaje corto, corregirlo y enviar | El error por campo aparece **sin salir a la red**; después se ven los tres estados, va **un** POST a `/api/v1/mensajes`, **ninguno** a la Server Action, y la base tiene **una** fila |
 | E21 | anónimo | La API responde 500 (forzado con `page.route`) | Enviar el formulario | Aparece el aviso de error **y el texto escrito no se pierde** |
@@ -576,46 +577,46 @@ arreglar: es que desaparece el argumento por el que ese archivo está permitido.
 Vale decirlo porque es el único caso de la suite donde una prueba en rojo no
 pide arreglar código sino **revisar una decisión de arquitectura**.
 
-### 6.7 Una prueba que tuvo que bajar lo que afirmaba
+### 6.7 Una prueba que se aflojó, y por qué hubo que volver atrás
 
-E18 afirmaba que el registro sin JavaScript **crea la cuenta**, y ese invariante
-estaba elegido a propósito para sobrevivir a que se activara "Confirm email":
-con la opción apagada el registro deja la sesión abierta, con ella activada manda
-a `/ingresar?estado=confirma`, y las dos son correctas. Afirmar una de las dos
-pantallas habría roto la prueba ese día; afirmar la creación de la cuenta, no.
+E18 afirma que el registro sin JavaScript **crea la cuenta**. Durante tres días
+afirmó otra cosa, y esa es la historia más instructiva de esta suite.
 
-**Sobrevivió al cambio de pantalla y no a otra cosa.** Medido el 7 de noviembre,
-el día que se activó la opción, contra `/auth/v1/signup` con un dominio
-`.invalid`:
+**El 7 de noviembre**, al activarse "Confirm email", un alta a la dirección
+`.invalid` de esta prueba empezó a devolver 500 y Supabase deshacía la cuenta.
+El invariante "la cuenta se creó" había sido elegido justamente para sobrevivir a
+ese cambio —con la opción apagada el registro abre sesión, con ella activada
+manda a `/ingresar?estado=confirma`, y las dos son correctas— y no sobrevivió.
 
-```
-{"code": 500, "error_code": "unexpected_failure",
- "msg": "Error sending confirmation email"}
-```
+Se propuso aflojar la aserción a "el navegador terminó en una URL elegida por el
+servidor", que aceptaba `/registro?error=` como resultado válido. El argumento
+sonaba bien: lo que E18 vino a verificar es que el formulario nativo llega a la
+Server Action, y eso lo seguía probando.
 
-Y la cuenta no queda ni sin confirmar: **Supabase deshace el alta**. La prueba
-usa un dominio `.invalid` justamente para no mandarle correo a nadie, así que su
-invariante pasó a ser imposible de cumplir.
+**El 10 de noviembre** se midió el registro con una dirección **real**, y también
+daba 500: Resend sin dominio verificado solo entrega a una casilla, así que el
+registro estaba roto **para cualquier dirección**. Y E18 seguía en verde, porque
+`/registro?error=` era exactamente lo que había pasado a aceptar.
 
-**Qué afirma ahora:** que el navegador terminó en una URL **elegida por el
-servidor**. Eso es lo que esta prueba vino a verificar —que el formulario nativo
-llega a la Server Action sin una línea de JavaScript— y sigue siendo cierto con
-la opción prendida o apagada.
+**Ese cambio lo propuse yo y fue un error: al aflojar la aserción, la suite dejó
+de poder detectar un registro roto, y eso pasó tres días después sin que nada
+avisara.** Es el mismo patrón que venimos documentando —una comprobación que no
+puede fallar no comprueba nada— y esta vez el error de método vino de la
+revisión, no del código.
 
-**Qué dejó de cubrir, dicho para que nadie lo suponga cubierto:** que el alta se
-complete y la cuenta exista. Eso ahora depende de que un correo se pueda
-entregar, que es otro sistema.
+Se apagó "Confirm email" y la aserción volvió. **Y se contraprobó en las dos
+direcciones**, que es lo que dice que ahora sí puede fallar:
 
-**Cómo se cubre eso:** a mano, una vez, con una dirección real. Completar
-`/registro`, recibir el correo, seguir el enlace y entrar. No se automatiza
-porque la alternativa era mandar un correo de verdad en cada corrida y por cada
-motor, o sea tres por corrida a la casilla del estudio.
+| | E18 |
+|---|---|
+| con "Confirm email" activado, registro roto | **rojo**: "el registro sin JavaScript no creó la cuenta" |
+| con la opción apagada, registro andando | **verde**, en los tres motores |
 
-**Y la lección, que es la que vale:** elegir un invariante pensando en un cambio
-futuro funcionó a medias. Protegió contra el cambio que se esperaba —la
-pantalla— y no contra el que no se había pensado: que el servicio externo haga
-del envío de correo una **precondición del alta**. Un invariante es una apuesta
-sobre qué va a cambiar, y acá la apuesta acertó la mitad.
+**Lo que queda escrito para la próxima vez.** Si un día se activa la opción con un
+dominio verificado, E18 va a fallar con la dirección `.invalid`, y ese fallo es
+información correcta. El arreglo es usar una dirección entregable, **no volver a
+aflojar la aserción**: aflojar una prueba para que pase con el sistema roto es
+convertirla en decoración.
 
 ### 6.8 Codegen y Trace Viewer
 

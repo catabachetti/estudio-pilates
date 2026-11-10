@@ -1358,6 +1358,66 @@ rojo", apuntar a **pasos cuyo fallo todavía no se vio**. El `build` de dos jobs
 el último arnés de `base` ya se vieron cortar; lo que faltaba era un paso de
 pruebas unitarias, un arnés del medio y un arnés del webhook.
 
+### La tercera causa, que las dos primeras tapaban
+
+Con el build arreglado, el job del webhook llegó al paso 7 y falló ahí.
+`probar-webhook-dos-claves.sh` pasa en esta Mac y fallaba en el runner.
+
+El arnés reusaba el puerto 3001 para los cuatro casos y mataba al servidor
+anterior buscándolo con **`lsof`**, que en macOS vive en `/usr/sbin` y en un
+runner no está garantizado. Y cuando no está, **el arnés no se da cuenta**: no
+mata nada, el `next start` nuevo no puede tomar el puerto, y el curl de espera
+igual contesta —contesta el servidor **viejo**— así que sigue adelante y prueba
+un servidor con otras claves.
+
+**Es un arnés que mide otra cosa**, el tipo (a) de la clasificación del módulo
+13. Y falló ruidosamente **por casualidad**: los cuatro casos esperan códigos
+distintos. Con dos casos de expectativa igual habría pasado en verde midiendo
+nada.
+
+Reproducido escondiendo `/usr/sbin` del `PATH`: el caso A pasa entero y los
+otros tres fallan contra las claves del A. El arreglo no fue instalar `lsof`
+—eso habría dejado la fragilidad intacta y escondida— sino **un puerto por
+caso**: no hay nada que matar, y si un servidor no atiende, el arnés corta.
+
+### Y una espera que nunca tenía éxito, en ningún lado
+
+Arreglando lo anterior apareció esto, que es peor porque era silencioso. La
+espera de "servidor listo" era `curl -sf`, y **`-f` hace fallar a curl con
+cualquier código >= 400**. En el CI el sitio corre sin variables de Supabase, así
+que **todas** las páginas contestan 500 al atenderse. Medido:
+
+```
+curl -sf  contra un servidor que contesta 500   -> 22    (parece caído)
+curl -s   contra el mismo                       -> 0     (hay servidor)
+curl -s   contra un puerto cerrado              -> 7     (no hay servidor)
+```
+
+El paso 6 del workflow **funcionaba por suerte**: gastaba los 60 segundos de
+espera completos y seguía igual, y el arnés solo necesita que el servidor
+atienda. Era una inestabilidad esperando el día en que `next start` tardara más
+de un minuto.
+
+Efecto medible del arreglo: el arnés pasa de gastar 240 segundos de espera
+inútil a terminar en **4**.
+
+### Los tres fallos eran el mismo error
+
+| | La medición decía | Lo que medía de verdad |
+| --- | --- | --- |
+| El build | "compila sin variables de entorno" | compila con `.env.local`, que `env -i` no borra |
+| El arnés | "el servidor de este caso contesta X" | el servidor de un caso anterior contestaba X |
+| La espera | "el servidor está listo" | el servidor devuelve menos de 400, que ahí nunca pasa |
+
+**En los tres la comprobación pasaba, y pasar era el problema.** Lo que los
+encontró fue el mismo mecanismo: un entorno donde los supuestos no se cumplen.
+Un runner limpio no comparte el `.env.local`, ni los binarios de macOS, ni el
+servidor de la corrida anterior.
+
+Y es la respuesta concreta a "¿para qué sirve un CI si ya probé todo en mi
+máquina?": **no corre otras pruebas, corre las mismas en otro lado**, y la
+diferencia entre los dos lados es donde viven estos errores.
+
 ### La contraprueba, con el paso predicho de antemano
 
 Tres regresiones **reales en código real**, una por job, y las tres son errores
@@ -1765,6 +1825,99 @@ alta.
 
 Las tres salieron a la luz porque algo verificaba el resultado, no porque las
 mirara con atención.
+
+## 2026-11-10 — La segunda revisión: lo que el profesor iba a ver
+
+**Prompt:** no correr la limpieza a cinco días de la demo, y volver a revisar por
+si hay algo más que el profesor pueda notar.
+
+La decisión sobre la limpieza era correcta para el script entero. La revisión
+encontró dos cosas que sí se iban a ver, y tres errores de método, uno de ellos
+de la revisión anterior.
+
+### El registro estaba roto para cualquier dirección
+
+Medido con una dirección **real** —un alias de la casilla del estudio—: `500
+"Error sending confirmation email"`, y Supabase deshacía el alta. En pantalla:
+*"No pudimos crear la cuenta."* Era lo que el profesor iba a ver si intentaba
+registrarse en la demo.
+
+La causa estaba escrita, en `docs/seguridad.md` §14: Resend sin dominio
+verificado solo entrega a una dirección. Pero la nota hablaba de las cuentas de
+prueba, de cuando registrarse no necesitaba correo. **Activar "Confirm email"
+—un pendiente quince líneas más abajo del mismo documento— convirtió esa
+limitación en una función rota.** Eran dos notas correctas que nadie leyó juntas.
+
+Se volvió a apagar la opción. Medido después: el registro abre sesión al
+instante, y la fuga de `user_already_exists` se reabrió (`422`). Es el canje
+correcto por ahora, y para la defensa vale más que si nunca se hubiera activado:
+**se activó, se midió que rompía el registro, y se volvió a apagar; el arreglo
+correcto es verificar un dominio, y está documentado.** Una decisión medida, no
+un descuido.
+
+### E18, y el error que vino de la revisión
+
+El 7 de noviembre, al activarse la opción, E18 no podía cumplir su invariante —"la
+cuenta se crea"— con la dirección `.invalid` que usa. Se aflojó a "el navegador
+terminó en una URL elegida por el servidor", que aceptaba `/registro?error=`.
+
+**Ese cambio lo propuse yo y fue un error: al aflojar la aserción, la suite dejó
+de poder detectar un registro roto, y eso pasó tres días después sin que nada
+avisara.** Es el mismo patrón que venimos documentando —una comprobación que no
+puede fallar no comprueba nada— y esta vez el error de método vino de la
+revisión, no del código.
+
+E18 volvió a afirmar que la cuenta se crea, y se contraprobó en las dos
+direcciones: **rojo** con la opción activada y el registro roto, **verde** en los
+tres motores con la opción apagada.
+
+### Una afirmación del 7 de noviembre que era falsa cuando se escribió
+
+La entrada de §15 de `docs/seguridad.md` decía, ese día: *"Lo bueno: el camino
+real sí funciona… que es exactamente lo que pasa ahora con una dirección
+entregable."*
+
+No era cierto, y se escribió **leyendo el código** —la redirección a
+`?estado=confirma` existe— sin probar una sola dirección real. Probada el 10,
+daba 500. **Si se hubiera probado el 7, el registro roto aparecía tres días
+antes.** El código decía qué haría el sitio si Supabase mandaba el correo; no
+podía decir si Supabase lo mandaba.
+
+### El horario falso, en todas las páginas
+
+```
+/horarios, lunes a viernes:   ... 18:00 19:00 20:00 20:40 21:40
+el pie, en todas las páginas: Lunes a viernes 7:00 a 23:00
+```
+
+Dos clases de prueba del 20 de noviembre que **creé yo** el 28 de octubre
+probando `POST /api/v1/clases`: se crearon a las 10:36, el mismo minuto del
+commit que agregó esos endpoints. No tenían reservas. El pie deriva el horario de
+la tabla `clases`, así que una sola clase a las 21:40 lo estiraba hasta las 23.
+
+El script de limpieza nunca las habría encontrado: están en 2026, y su predicado
+viejo solo miraba 2027. Se borraron por id —dos filas, no el script— y el pie
+volvió a decir 7:00 a 21:00, visible en el pedido siguiente.
+
+### Documentación que un revert se llevó
+
+El commit de contraprueba del 3 de noviembre llevó adentro documentación sin
+commitear —58 líneas de `docs/despliegue.md` y 41 de esta bitácora— y el `git
+revert` que lo deshizo se llevó todo junto. Una referencia de `docs/pruebas.md`
+quedó apuntando al vacío. Se restauró desde la historia de git, entera.
+
+**La lección es de proceso:** un commit hecho para revertirse tiene que contener
+solo lo que se quiere revertir. `git revert` no distingue intención.
+
+### Lo que las tres tienen en común
+
+| | Lo que se afirmaba | Cómo se sabía | Lo que pasaba |
+| --- | --- | --- | --- |
+| E18 | "el POST llegó al servidor" | la prueba pasaba | pasaba también con el registro roto |
+| §15 | "el camino real funciona" | leyendo el código | el servicio de afuera no mandaba el correo |
+| el revert | "se deshicieron tres roturas" | el CI volvió a verde | se deshizo también la documentación |
+
+En los tres casos la comprobación que se usó **no podía ver** lo que importaba.
 
 ## Dónde falló y dónde no
 

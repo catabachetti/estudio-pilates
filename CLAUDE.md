@@ -374,7 +374,8 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   3. **Lo que se crea, se borra**, en el teardown del fixture.
 - **Una cuenta nueva por corrida**, creada con `POST /auth/v1/admin/users` y
   `email_confirm: true`, borrada al terminar. Así funciona igual con "Confirm
-  email" activado o apagado, que es un pendiente de `docs/seguridad.md` §15.
+  email" activado o apagado, y **no depende de que se pueda mandar un correo**:
+  con Resend sin dominio verificado, el correo solo llega a una dirección.
 - **Sin reintentos.** `retries: 0`: un reintento convierte una prueba inestable
   en una que "pasa a veces".
 - **Los tres motores solo donde pagan**: las pruebas sin estado y las sin
@@ -411,6 +412,24 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
 - **`/privacidad` menciona los mensajes de contacto.** Si algún día se empieza a
   guardar la IP o cualquier dato nuevo, esa página tiene que decirlo: hoy afirma
   textualmente que no se guarda la dirección IP.
+
+## Correo
+
+- **No activar "Confirm email" sin un dominio verificado en Resend.** Resend en su
+  dominio de prueba (`resend.dev`) solo entrega a la dirección de la cuenta, y con
+  la confirmación activada cada alta necesita mandar un correo: el registro se
+  rompe para cualquier otra dirección. Medido el 10 de noviembre de 2026, con una
+  dirección real: `500 "Error sending confirmation email"`, sin cuenta creada.
+- Por eso hoy está **apagado a propósito**, y la fuga de `user_already_exists` en
+  el endpoint crudo de Supabase está abierta. Es el canje medido, no un olvido:
+  ver `docs/seguridad.md` §2.1.
+- **El SMTP incorporado de Supabase no es la salida**: también envía solo a las
+  direcciones del equipo del proyecto, y con un límite de 2 por hora.
+- La **recuperación de contraseña** depende del mismo correo, así que hoy solo le
+  llega a la dirección verificada.
+- Cuando algo dependa de que un correo llegue, **se prueba con una dirección
+  real**, no se deduce del código. El 7 de noviembre se escribió que el registro
+  funcionaba leyendo la redirección de `sesion.js`, y era falso.
 
 ## Lo que llega por la URL
 
