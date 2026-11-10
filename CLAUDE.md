@@ -231,12 +231,14 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 El recorrido completo está en `docs/api.md`. Acá lo que hay que saber antes de
 tocarla.
 
-- **Hoy nada del proyecto la llama.** Las páginas son Server Components y leen
-  los datos llamando a las funciones de `app/lib/` directamente; un `fetch`
-  contra el propio servidor pagaría un viaje de red para pedirse algo a sí
-  mismo. `/salud` es el único endpoint con un propósito que ninguna Server
-  Action puede cubrir —monitoreo externo, que pregunta sin que haya nadie
-  usando el sitio— y los otros diez son un ejercicio. Está dicho así en
+- **La llama una sola pantalla, desde el 4 de noviembre de 2026: el
+  formulario de `/contacto`, que manda con `fetch` a `POST /mensajes`.** Para
+  leer datos, las páginas son Server Components y llaman a las funciones de
+  `app/lib/` directamente; un `fetch` contra el propio servidor pagaría un
+  viaje de red para pedirse algo a sí mismo. `/salud` es el único endpoint con
+  un propósito que ninguna Server Action puede cubrir —monitoreo externo, que
+  pregunta sin que haya nadie usando el sitio—, `/mensajes` tiene su
+  consumidor, y los otros diez son un ejercicio. Está dicho así en
   `docs/api.md` §1 a propósito: **un endpoint documentado como ejercicio es
   información honesta; uno presentado como pieza de arquitectura cuando nadie
   lo llama es decorado.** No agregar un consumidor inventado para disimularlo.
@@ -437,7 +439,7 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   parece inofensivo y no lo es: una clave como `toString`, `constructor`,
   `valueOf` o `__proto__` devuelve la propiedad **heredada del prototipo** de
   `Object`, casi siempre una función, y una función no se puede renderizar.
-  Medido el 7 de noviembre de 2026: **once pantallas devolvían 500** con
+  Medido el 7 de noviembre de 2026: **nueve pantallas devolvían 500** con
   `?error=toString` y `/reservar` dibujaba una caja `role="alert"` vacía.
   Se usa `mensajeDe()` de `app/lib/avisos.js`, que mira solo las propiedades
   propias con `Object.hasOwn`.

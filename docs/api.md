@@ -70,11 +70,12 @@ Entonces, con nombre y apellido:
 | `POST /mensajes` | **el formulario de `/contacto`** | lo mismo. Es el primero de esta API con un consumidor propio de verdad |
 | **`POST /api/webhooks/mercadopago`** | **Mercado Pago, de verdad** | — |
 
-O sea: **`/salud` tiene un consumidor real pendiente de configurar, los otros
-diez de `/api/v1` son un ejercicio hoy, y el webhook es el único endpoint del
-proyecto con un consumidor real y medido.** Lo que justifica a los diez no es
-que alguien los use: es que el módulo pide construirlos, y que son el destino
-de la migración de la sección 12.
+O sea: **`POST /mensajes` es el único de `/api/v1` con un consumidor propio,
+`/salud` tiene un consumidor real pendiente de configurar, los otros diez son
+un ejercicio hoy, y el webhook es el único endpoint al que llama un sistema de
+afuera.** Lo que justifica a los diez no es que alguien los use: es que el
+módulo pide construirlos, y que son el destino de la migración de la sección
+12.
 
 **El webhook es la excepción, y no está en `/api/v1`.** Lo llama un servidor de
 Mercado Pago cada vez que un pago cambia de estado, y está verificado contra
