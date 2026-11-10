@@ -220,46 +220,39 @@ test.describe('el medidor de contraseña: la única excepción', () => {
     await page.getByLabel('Contraseña', { exact: true }).fill(password)
     await page.getByRole('button', { name: /Crear/ }).click()
 
-    // LO QUE ESTA PRUEBA AFIRMA, Y LO QUE DEJO DE AFIRMAR EL 7 DE NOVIEMBRE.
+    // LA CUENTA SE CREA. Es lo que esta prueba afirmó desde el principio, y lo
+    // que afirma de nuevo desde el 10 de noviembre.
     //
-    // Afirmaba que **la cuenta se creó**, y ese invariante había sido elegido a
-    // propósito para sobrevivir a que se activara "Confirm email": con la opción
-    // apagada el registro deja la sesión abierta, con ella activada manda a
-    // `/ingresar?estado=confirma`, y las dos son correctas.
+    // ENTRE EL 7 Y EL 10 DE NOVIEMBRE NO LO AFIRMABA, y conviene que quede acá
+    // por qué, porque es el error más instructivo de la suite. Al activarse
+    // "Confirm email", un alta a la dirección `.invalid` de esta prueba empezó a
+    // devolver 500 y Supabase deshacía la cuenta. La aserción se aflojó a "el
+    // navegador terminó en una URL elegida por el servidor", que aceptaba
+    // `/registro?error=` como resultado válido.
     //
-    // Sobrevivió al cambio de pantalla y no a otra cosa. Medido el día que se
-    // activó: un alta a una dirección **no entregable** devuelve
-    // `500 "Error sending confirmation email"` y **Supabase deshace el alta**.
-    // Y esta prueba usa un dominio `.invalid` justamente para no mandar correo a
-    // nadie.
+    // Y ESO LA DEJO SIN PODER FALLAR ANTE LO QUE IMPORTABA. Tres días después
+    // se midió que el registro estaba roto PARA CUALQUIER DIRECCION, no solo
+    // para `.invalid`: Resend sin dominio verificado solo entrega a una casilla,
+    // así que un alta con una dirección real también daba 500. La prueba seguía
+    // en verde, porque `/registro?error=` era justamente lo que aceptaba. Una
+    // comprobación que no puede fallar no comprueba nada.
     //
-    // Así que ahora afirma lo que sigue siendo invariante y es lo que esta prueba
-    // vino a verificar: **que el formulario sin JavaScript llegó a la Server
-    // Action y el servidor lo procesó**. Eso se ve en que el navegador terminó en
-    // una URL que eligió el servidor, no en /registro a secas. Las dos formas
-    // posibles valen: `?estado=confirma` si el correo se pudo mandar,
-    // `/registro?error=` si no.
+    // "Confirm email" se volvió a apagar —el registro abre sesión al instante y
+    // no necesita correo— y esta aserción volvió.
     //
-    // LO QUE DEJO DE CUBRIR, dicho para que nadie lo suponga cubierto: que el
-    // alta se complete y la cuenta exista. Eso ahora depende de que un correo se
-    // pueda entregar, que es otro sistema y no es lo que el `'use client'` del
-    // medidor necesita justificar. **Se verifica a mano, una vez, con una
-    // dirección real**: completar /registro, recibir el correo, seguir el enlace
-    // y entrar. Está anotado en docs/pruebas.md §6.7.
-    await expect(
-      page,
-      'el formulario sin JavaScript no llegó al servidor: el navegador no se ' +
-        'movió a una URL elegida por la Server Action'
-    ).toHaveURL(/\/ingresar\?estado=confirma|\/registro\?error=/)
-
-    // Y SE COMPRUEBA QUE NO QUEDE UNA CUENTA HUERFANA, que es la regla 3 al
-    // revés: acá lo que se limpia es lo que no debería haberse creado. Medido:
-    // cuando el envío falla, Supabase no deja la cuenta sin confirmar.
+    // SI ALGUN DIA SE VUELVE A ACTIVAR, con un dominio verificado en Resend,
+    // esta prueba va a fallar con la dirección `.invalid`, y ese fallo es
+    // información correcta: dice que la suite ya no puede registrar con una
+    // dirección que no recibe correo. El arreglo es usar una dirección
+    // entregable, no volver a aflojar la aserción.
     const usuarios = await supabase(
       `/auth/v1/admin/users?filter=${encodeURIComponent(email)}`
     )
     const creada = (usuarios.users ?? []).find((u) => u.email === email)
-    if (creada) await supabase(`/auth/v1/admin/users/${creada.id}`, { method: 'DELETE' })
+    expect(creada, `el registro sin JavaScript no creó la cuenta ${email}`).toBeTruthy()
+
+    // Y se limpia, que es la regla 3.
+    await supabase(`/auth/v1/admin/users/${creada.id}`, { method: 'DELETE' })
   })
 })
 

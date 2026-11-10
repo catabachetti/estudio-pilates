@@ -88,23 +88,29 @@ POST /auth/v1/signup con un correo ya registrado
 ```
 
 Ese endpoint es público y alcanzable con la clave publishable, así que la fuga
-existía aunque nuestro formulario estuviera bien hecho. **Se cerró activando
-"Confirm email"** en el panel, el 7 de noviembre de 2026. Medido después, con un
-correo que ya tiene cuenta:
+existe aunque nuestro formulario esté bien hecho. **Hoy está abierta, y es una
+decisión medida**, no un descuido. El recorrido:
 
-```
-POST /auth/v1/signup con un correo ya registrado
-  -> 200  un usuario con "identities": []   (sin user_already_exists)
-```
+| Fecha | Qué se hizo | Medido |
+|---|---|---|
+| 7 nov | Se activó "Confirm email" | La fuga se cerró: un correo existente daba `200` con `"identities": []` |
+| 10 nov | Se midió el registro con una dirección **real** | `500 "Error sending confirmation email"`, **sin cuenta creada**. Roto para cualquier dirección |
+| 10 nov | Se volvió a apagar | El registro abre sesión al instante otra vez. Y la fuga volvió: `422 user_already_exists` |
 
-Supabase devuelve un usuario de mentira sin identidades en vez de decir que la
-cuenta existe, así que la respuesta ya no distingue los dos casos.
+**Por qué se rompía:** con la confirmación activada, cada alta necesita mandar
+un correo, y Resend sin dominio verificado **solo entrega a una dirección** —ver
+§14—. Así que el registro funcionaba para una sola casilla en el mundo.
 
-Con un matiz que conviene conocer: un alta a una dirección **no entregable**
-devuelve `500 "Error sending confirmation email"`. Eso no reabre la fuga —con
-una dirección real los dos casos dan 200—, pero sí significa que **probar si una
-dirección real existe le manda a esa persona un correo de confirmación**, y eso
-es inherente al diseño.
+**Por qué la fuga es el canje correcto, por ahora:** su gravedad es baja. El
+formulario propio no la expone —muestra un mensaje genérico, sin el texto de
+Supabase— y lo único que revela el endpoint crudo es si un correo tiene cuenta.
+Un registro roto para todo el mundo, en cambio, deja al sitio sin poder sumar a
+nadie.
+
+**El arreglo de verdad**, que cierra la fuga sin romper el registro: un dominio
+propio verificado en Resend, para que pueda entregar a cualquiera, y después
+volver a activar "Confirm email". No está hecho porque el proyecto decidió no
+comprar un dominio —`docs/despliegue.md` §6—.
 
 ### 2.2 Fortaleza de contraseña
 
@@ -757,6 +763,15 @@ Por eso las cuentas de prueba con `+alias` no pueden recibir correos. Es una
 limitación de la configuración, no del código: con un dominio verificado se
 envía a cualquiera.
 
+**Y esta nota se quedó corta durante semanas.** Estaba escrita como un problema
+de las cuentas de prueba, cuando registrarse no necesitaba correo. El día que se
+activó "Confirm email" —un pendiente de §15, quince líneas más abajo— la misma
+limitación pasó a romper **el registro para cualquier dirección**. Eran dos
+notas correctas del mismo documento que nadie leyó juntas. Ver 2.1.
+
+Y afecta también a la **recuperación de contraseña**: `/recuperar` manda un
+correo, así que hoy solo le llega a la dirección verificada.
+
 **No hay historial de contraseñas.** Supabase rechaza poner la contraseña que ya
 está puesta, y compara **solo contra la actual**. Los textos de la pantalla
 dicen exactamente eso y no "ya usaste esa contraseña", que afirmaría una
@@ -765,9 +780,10 @@ hashes viejos, con su propio costo.
 
 **El bloqueo de ingreso protege el formulario, no el endpoint.** Ver 3.2.
 
-**La fuga de `user_already_exists` se cerró** al activar "Confirm email", el 7 de
-noviembre de 2026. Medido: un alta con un correo existente devuelve 200 con
-`identities: []`. Ver 2.1.
+**La fuga de `user_already_exists` está abierta, a propósito.** Se cerró el 7 de
+noviembre al activar "Confirm email", y se reabrió el 10 al apagarlo, porque
+con la opción activada el registro no funcionaba para nadie. Medido hoy: `422
+user_already_exists`. El arreglo es un dominio verificado. Ver 2.1.
 
 ---
 
@@ -787,10 +803,9 @@ Mercado Pago. Las cuentas en sí se borran a mano desde el panel, de a una.
 
 ### Resuelto
 
-**"Confirm email" activado** — 7 de noviembre de 2026. Cierra la fuga de
-`user_already_exists` de §2.1 y hace falta igual para un sitio real. Estuvo
-apagado a propósito mientras se desarrollaba, para no bloquear las cuentas de
-prueba.
+**"Confirm email": activado, medido y vuelto a apagar** — del 7 al 10 de
+noviembre de 2026. Está acá y no en pendientes porque es una decisión tomada, con
+su motivo medido; el recorrido completo está en §2.1.
 
 Se comprueba sin entrar al panel, porque Supabase lo expone:
 
@@ -800,27 +815,21 @@ curl -s "$NEXT_PUBLIC_SUPABASE_URL/auth/v1/settings" \
 ```
 
 ```
-"mailer_autoconfirm": false     <- Confirm email ACTIVADO
+"mailer_autoconfirm": true     <- Confirm email APAGADO, medido el 10 de noviembre
 ```
 
-**Y tuvo una consecuencia que conviene dejar escrita**, porque no era obvia:
-con la confirmación activada, un alta a una dirección **no entregable** no crea
-la cuenta. Medido contra `/auth/v1/signup` con un dominio `.invalid`:
+**Y una afirmación falsa que esta misma entrada tuvo entre el 7 y el 10**, que
+vale dejar a la vista. Decía:
 
-```
-{"code": 500, "error_code": "unexpected_failure",
- "msg": "Error sending confirmation email"}
-```
+> Lo bueno: el camino real sí funciona. `app/acciones/sesion.js:74` manda a
+> `/ingresar?estado=confirma` cuando `signUp` no devuelve sesión, que es
+> exactamente lo que pasa ahora con una dirección entregable.
 
-Y la cuenta no queda ni sin confirmar: Supabase deshace el alta. Eso rompió el
-caso E18 de `docs/pruebas.md`, que registraba por el formulario con un dominio
-`.invalid` y afirmaba como invariante que **la cuenta se creó**. Ese invariante
-había sido elegido justamente para sobrevivir a este cambio, y no sobrevivió:
-sobrevive al cambio de pantalla, no a una dirección que no existe.
-
-Lo bueno: el camino real sí funciona. `app/acciones/sesion.js:74` manda a
-`/ingresar?estado=confirma` cuando `signUp` no devuelve sesión, que es
-exactamente lo que pasa ahora con una dirección entregable.
+No era cierto. Se afirmó **leyendo el código** —la redirección existe— sin
+probar una sola dirección real. Probada el 10, devolvía 500. Si se hubiera
+probado el 7, el registro roto aparecía tres días antes. Es la misma clase de
+error que este documento registra en otros lados: lo que dice el código no es lo
+que hace el sistema cuando depende de un servicio de afuera.
 
 **`Site URL` volvió a la de Vercel** — 19 de octubre de 2026, verificado con
 captura del panel. Durante el desarrollo de la recuperación de contraseña
