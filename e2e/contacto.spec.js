@@ -103,7 +103,7 @@ test.describe('el formulario de contacto', () => {
     await borrarMensajesDe(email)
   })
 
-  // Caso 18. EL ENDURECIMIENTO CONTRA UN FORMULARIO DE OTRO SITIO.
+  // Caso 19. EL ENDURECIMIENTO CONTRA UN FORMULARIO DE OTRO SITIO.
   //
   // `POST /api/v1/mensajes` es el único endpoint de la API sin sesión, y por eso
   // el único donde la protección de CSRF de Next no alcanza: esa protección
