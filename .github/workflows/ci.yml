@@ -102,8 +102,9 @@ jobs:
       # la idempotencia de la acreditación.
       #
       # No hace falta `npm ci`: estos arneses solo usan psql, initdb, pg_ctl y
-      # python3. Levantan su propio Postgres descartable y corren las doce
-      # migraciones de verdad.
+      # python3. Levantan su propio Postgres descartable y corren todas las
+      # migraciones de verdad: recorren supabase/migraciones/*.sql, así que una
+      # migración nueva entra sola.
       - name: zsh, que los arneses usan
         run: |
           if ! command -v zsh > /dev/null; then
