@@ -40,7 +40,7 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   vuelve a ser un agregado.
 
   **El respaldo no es un extra: es la condición.** Si deja de funcionar, el
-  componente no corresponde, y la prueba que lo vigila es el caso 18 de
+  componente no corresponde, y la prueba que lo vigila es E22, en
   `e2e/sin-javascript.spec.js`.
 
   Que los dos puedan convivir está **medido**, con su control: `preventDefault()`
@@ -231,12 +231,14 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
 El recorrido completo está en `docs/api.md`. Acá lo que hay que saber antes de
 tocarla.
 
-- **Hoy nada del proyecto la llama.** Las páginas son Server Components y leen
-  los datos llamando a las funciones de `app/lib/` directamente; un `fetch`
-  contra el propio servidor pagaría un viaje de red para pedirse algo a sí
-  mismo. `/salud` es el único endpoint con un propósito que ninguna Server
-  Action puede cubrir —monitoreo externo, que pregunta sin que haya nadie
-  usando el sitio— y los otros diez son un ejercicio. Está dicho así en
+- **La llama una sola pantalla, desde el 4 de noviembre de 2026: el
+  formulario de `/contacto`, que manda con `fetch` a `POST /mensajes`.** Para
+  leer datos, las páginas son Server Components y llaman a las funciones de
+  `app/lib/` directamente; un `fetch` contra el propio servidor pagaría un
+  viaje de red para pedirse algo a sí mismo. `/salud` es el único endpoint con
+  un propósito que ninguna Server Action puede cubrir —monitoreo externo, que
+  pregunta sin que haya nadie usando el sitio—, `/mensajes` tiene su
+  consumidor, y los otros diez son un ejercicio. Está dicho así en
   `docs/api.md` §1 a propósito: **un endpoint documentado como ejercicio es
   información honesta; uno presentado como pieza de arquitectura cuando nadie
   lo llama es decorado.** No agregar un consumidor inventado para disimularlo.
@@ -405,10 +407,10 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   CAPTCHA, descartado a propósito (ver `docs/seguridad.md`).
 - **Los largos están en dos lados que no se pueden importar entre sí:**
   `app/lib/esquemas.js` y la función de la migración 014. Es la única
-  duplicación conocida del proyecto, y lo que impide que se separen es el caso 8
-  de `supabase/probar-mensajes.sh`, que **lee las constantes del archivo de
-  JavaScript** y prueba la función en los bordes. Si cambia uno de los dos, ese
-  arnés falla.
+  duplicación conocida del proyecto, y lo que impide que se separen es la
+  sección 8 de `supabase/probar-mensajes.sh`, que **lee las constantes del
+  archivo de JavaScript** y prueba la función en los bordes. Si cambia uno de
+  los dos, ese arnés falla.
 - **`/privacidad` menciona los mensajes de contacto.** Si algún día se empieza a
   guardar la IP o cualquier dato nuevo, esa página tiene que decirlo: hoy afirma
   textualmente que no se guarda la dirección IP.
@@ -437,7 +439,7 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   parece inofensivo y no lo es: una clave como `toString`, `constructor`,
   `valueOf` o `__proto__` devuelve la propiedad **heredada del prototipo** de
   `Object`, casi siempre una función, y una función no se puede renderizar.
-  Medido el 7 de noviembre de 2026: **once pantallas devolvían 500** con
+  Medido el 7 de noviembre de 2026: **nueve pantallas devolvían 500** con
   `?error=toString` y `/reservar` dibujaba una caja `role="alert"` vacía.
   Se usa `mensajeDe()` de `app/lib/avisos.js`, que mira solo las propiedades
   propias con `Object.hasOwn`.

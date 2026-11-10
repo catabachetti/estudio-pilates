@@ -201,6 +201,12 @@ qué le pidieron, no.
 dev`: lo recomienda la guía de la versión instalada y es como se verificó todo
 el resto del proyecto.
 
+**Cada prueba lleva en el comentario que la presenta el id de esta tabla** —por
+ejemplo `// E18.`—, y es la única numeración de las E2E. Hasta el 10 de
+noviembre de 2026 los comentarios usaban otra, que coincidía con esta del 1 al 9
+y se separaba desde el 10: el 18 que citaban dos documentos era E22, y E18
+estaba bajo el 14. Un id nuevo va al final de la tabla y no se reusa.
+
 | # | Rol | Precondiciones | Pasos | Resultado esperado |
 |---|---|---|---|---|
 | E1 | anónimo | — | Desde la home, clic en cada sección del menú | Las 4 cargan con su `h1` |

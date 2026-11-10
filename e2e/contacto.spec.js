@@ -30,7 +30,7 @@ async function borrarMensajesDe(email) {
 }
 
 test.describe('el formulario de contacto', () => {
-  // Caso 16. El camino completo con JavaScript: validación en el cliente,
+  // E20. El camino completo con JavaScript: validación en el cliente,
   // `fetch` a la API, y los tres estados.
   test('valida, envía por fetch y muestra los tres estados', async ({ page }) => {
     const email = correoDePrueba()
@@ -103,7 +103,7 @@ test.describe('el formulario de contacto', () => {
     await borrarMensajesDe(email)
   })
 
-  // Caso 19. EL ENDURECIMIENTO CONTRA UN FORMULARIO DE OTRO SITIO.
+  // E23. EL ENDURECIMIENTO CONTRA UN FORMULARIO DE OTRO SITIO.
   //
   // `POST /api/v1/mensajes` es el único endpoint de la API sin sesión, y por eso
   // el único donde la protección de CSRF de Next no alcanza: esa protección
@@ -147,7 +147,7 @@ test.describe('el formulario de contacto', () => {
     await borrarMensajesDe(email)
   })
 
-  // Caso 17. El tercer estado, forzado. Sin esto, "error" sería una rama que
+  // E21. El tercer estado, forzado. Sin esto, "error" sería una rama que
   // nunca se ejecuta: el tipo (c) de docs/pruebas.md.
   test('si la API falla, lo dice y no se pierde lo escrito', async ({ page }) => {
     await page.route('**/api/v1/mensajes', (ruta) =>

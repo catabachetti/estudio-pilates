@@ -45,7 +45,7 @@ test.describe('con cuenta de administración', () => {
     await ingresar(page, admin)
   })
 
-  // Caso 10a. Las cinco pantallas cargan y se identifican.
+  // E11. Las seis pantallas cargan y se identifican.
   for (const { ruta, titulo } of PANTALLAS) {
     test(`${ruta} carga con su título`, async ({ page }) => {
       await page.goto(ruta)
@@ -59,7 +59,7 @@ test.describe('con cuenta de administración', () => {
     await expect(page.getByRole('link', { name: 'Panel' })).toBeVisible()
   })
 
-  // Caso 11. La única escritura de administración que no toca el catálogo.
+  // E12. La única escritura de administración que no toca el catálogo.
   //
   // No se prueba editar un precio: eso modificaría `paquetes`, que el sitio
   // muestra. La regla está en fixtures.js y se respeta en vez de disimularla.
@@ -98,8 +98,8 @@ test.describe('con cuenta de administración', () => {
     ).toBeHidden()
   })
 
-  // El formulario de paquetes trae lo que la base tiene. Es una lectura: no se
-  // escribe nada.
+  // E13. El formulario de paquetes trae lo que la base tiene. Es una
+  // lectura: no se escribe nada.
   test('el formulario de paquetes trae los valores de la base', async ({ page }) => {
     const paquetes = await supabase(
       '/rest/v1/paquetes?select=nombre,precio&activo=eq.true&order=orden&limit=1'
@@ -122,7 +122,7 @@ test.describe('con cuenta de administración', () => {
 })
 
 test.describe('con cuenta de cliente', () => {
-  // Caso 10b. EL 403, Y ES EL CASO QUE MAS IMPORTA DE ESTA ESPECIFICACION.
+  // E10. EL 403, Y ES EL CASO QUE MAS IMPORTA DE ESTA ESPECIFICACION.
   //
   // La verificación de rol **no está en el layout** a propósito: la
   // documentación de Next dice que los layouts no se vuelven a renderizar al

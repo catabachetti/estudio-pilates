@@ -70,11 +70,12 @@ Entonces, con nombre y apellido:
 | `POST /mensajes` | **el formulario de `/contacto`** | lo mismo. Es el primero de esta API con un consumidor propio de verdad |
 | **`POST /api/webhooks/mercadopago`** | **Mercado Pago, de verdad** | — |
 
-O sea: **`/salud` tiene un consumidor real pendiente de configurar, los otros
-diez de `/api/v1` son un ejercicio hoy, y el webhook es el único endpoint del
-proyecto con un consumidor real y medido.** Lo que justifica a los diez no es
-que alguien los use: es que el módulo pide construirlos, y que son el destino
-de la migración de la sección 12.
+O sea: **`POST /mensajes` es el único de `/api/v1` con un consumidor propio,
+`/salud` tiene un consumidor real pendiente de configurar, los otros diez son
+un ejercicio hoy, y el webhook es el único endpoint al que llama un sistema de
+afuera.** Lo que justifica a los diez no es que alguien los use: es que el
+módulo pide construirlos, y que son el destino de la migración de la sección
+12.
 
 **El webhook es la excepción, y no está en `/api/v1`.** Lo llama un servidor de
 Mercado Pago cada vez que un pago cambia de estado, y está verificado contra
@@ -83,9 +84,11 @@ producción: un aviso firmado devolvió
 la cuenta. Tiene su propia sección, la 14.
 
 Lo que **no** se hizo, justamente para no decorar: inventar un consumidor.
-No hay un `'use client'` nuevo llamando a `fetch` para poder decir que la API
-se usa. La única excepción de `'use client'` del proyecto sigue siendo el
-medidor de contraseña, y está argumentada en `CLAUDE.md`.
+El único `'use client'` que llama a `fetch` es el formulario de contacto, y no
+está para poder decir que la API se usa: está porque el formulario necesita
+mostrar los tres estados de una petición en curso sin navegar, que es lo que
+pide el módulo 6 del curso. Las tres excepciones de `'use client'` del
+proyecto están argumentadas en `CLAUDE.md`.
 
 ---
 
