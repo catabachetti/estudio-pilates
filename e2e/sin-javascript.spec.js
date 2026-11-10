@@ -3,10 +3,12 @@ import { test, expect, acreditar, claseConLugar, supabase } from './fixtures'
 // SIN JAVASCRIPT. ES LA AFIRMACION CENTRAL DEL PROYECTO Y HASTA HOY SE
 // VERIFICABA A MANO, desactivándolo en el navegador.
 //
-// Todo el sitio son Server Components y Server Actions, con **una sola**
-// excepción de `'use client'`: el medidor de fortaleza de contraseña. La
-// promesa es que con JavaScript apagado el sitio funciona igual, y que lo único
-// que se pierde es la barra moviéndose.
+// Todo el sitio son Server Components y Server Actions, con **tres**
+// excepciones de `'use client'`: el medidor de fortaleza de contraseña, el
+// formulario de contacto y la pantalla de error. La promesa es que con
+// JavaScript apagado el sitio funciona igual: el medidor deja de moverse, el
+// formulario de contacto se envía igual por su Server Action, y la pantalla de
+// error no pierde nada, porque sin JavaScript un 500 ya era una página vacía.
 //
 // Esta especificación corre en los TRES motores, y acá el multinavegador sí
 // paga: lo que se prueba es el comportamiento **nativo** del navegador al
@@ -30,11 +32,11 @@ test.describe('el sitio se recorre sin JavaScript', () => {
   // —al revés— la conclusión habría sido "JavaScript está prendido" y se
   // habría perseguido un problema que no existe.
   //
-  // El detector que sí sirve es de COMPORTAMIENTO, y usa la única pieza de
-  // cliente que hay: el medidor de contraseña. Con JavaScript, escribir en el
-  // campo mueve el `<meter>` por el `onChange`; sin JavaScript queda en el
-  // valor que vino del servidor. Que el proyecto tenga un solo componente de
-  // cliente lo convierte en un detector exacto.
+  // El detector que sí sirve es de COMPORTAMIENTO, y usa el medidor de
+  // contraseña. Con JavaScript, escribir en el campo mueve el `<meter>` por el
+  // `onChange`; sin JavaScript queda en el valor que vino del servidor. Es el
+  // único componente de cliente que se dibuja en /registro, así que si el
+  // `<meter>` se mueve, el JavaScript corrió: es un detector exacto.
   test('JavaScript está realmente apagado', async ({ page }) => {
     await page.goto('/registro')
 
@@ -171,7 +173,7 @@ test.describe('reservar sin JavaScript', () => {
   })
 })
 
-test.describe('el medidor de contraseña: la única excepción', () => {
+test.describe('el medidor de contraseña: la primera excepción', () => {
   // E17 y E18. ESTE ES EL CASO QUE JUSTIFICA LA EXCEPCION DE 'use client'.
   //
   // CLAUDE.md dice que el medidor es un agregado y no una dependencia: con

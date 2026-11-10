@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { LARGO_MINIMO, PATRON, fortalezaDe, reglasDe } from '../lib/contrasena'
 
-// LA ÚNICA EXCEPCIÓN A "CERO 'use client'" DEL PROYECTO, y tiene un límite
-// estricto: el medidor es un agregado, no una dependencia. Nada funcional pasa
-// por acá.
+// LA PRIMERA DE LAS TRES EXCEPCIONES A "CERO 'use client'" DEL PROYECTO, y
+// tiene un límite estricto: el medidor es un agregado, no una dependencia. Nada
+// funcional pasa por acá. Las otras dos, `FormularioDeContacto.jsx` y
+// `app/error.jsx`, se justifican distinto: están en CLAUDE.md.
 //
 // Si el navegador no ejecuta JavaScript, este componente igual se renderiza en
 // el servidor y lo que queda es un campo de contraseña normal con su `pattern`,
