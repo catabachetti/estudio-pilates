@@ -245,7 +245,7 @@ tocarla.
   páginas y un Route Handler no renderiza. El equivalente se construyó
   componiendo `manejador()` alrededor de cada handler. **La cobertura es una
   convención, no una garantía:** un handler exportado sin envolver queda afuera
-  y nadie avisa, así que se cuenta —hoy 11 exportados y 11 envueltos— y el
+  y nadie avisa, así que se cuenta —hoy 12 exportados y 12 envueltos— y el
   comando está en `docs/api.md` §3.
 - **Un solo ayudante de identidad, `clienteDeApi()`, con dos mecanismos.**
   Cookie para el navegador (es la misma cookie `HttpOnly` del resto del sitio);
