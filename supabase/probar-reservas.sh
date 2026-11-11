@@ -157,5 +157,47 @@ q -q -c "update clases set estado='programada' where id='$C4';"
 igual "$(confirmadas $C4)" 0 "reservas confirmadas: no vuelven"
 igual "$(libres $BEA)" 1 "creditos libres de Bea: sigue teniendolo"
 
+# Las fechas de los dos casos que siguen salen de la hora de Buenos Aires, igual
+# que adentro de reservar_clase(). Con current_date, un servidor en UTC a las 22
+# de Buenos Aires ya esta en el dia siguiente, y "vencio ayer" pasaria a ser
+# "vence hoy", que todavia sirve.
+HOY="(now() at time zone 'America/Argentina/Buenos_Aires')::date"
+
+echo
+echo "=== 7. SE CONSUME PRIMERO EL CREDITO QUE VENCE ANTES ==="
+# Dos creditos para Cami. El que vence ANTES se carga DESPUES: si la funcion
+# ordenara por fecha de carga, o por nada, elegiria el otro y esto lo detecta.
+CAMI=33333333-3333-3333-3333-333333333333
+q -q <<SQL
+insert into auth.users (id, email, raw_user_meta_data)
+values ('$CAMI', 'cami@x.com', '{"nombre":"Cami"}'::jsonb);
+insert into compras (user_id, paquete_id, monto, estado)
+select '$CAMI', (select id from paquetes limit 1), 1000, 'aprobada';
+insert into creditos (user_id, compra_id, vence_el, created_at)
+select '$CAMI', id, $HOY + 60, now() - interval '1 day' from compras where user_id='$CAMI';
+insert into creditos (user_id, compra_id, vence_el, created_at)
+select '$CAMI', id, $HOY + 10, now() from compras where user_id='$CAMI';
+SQL
+C5=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), current_date + 4, '23:30', 6 returning id;")
+igual "$(como $CAMI "select resultado from reservar_clase('$C5');")" ok "Cami reserva"
+igual "$(q -c "select c.vence_el - $HOY from reservas r join creditos c on c.id = r.credito_id where r.user_id='$CAMI' and r.clase_id='$C5';")" 10 "dias que le quedaban al credito consumido"
+igual "$(q -c "select count(*) from creditos c where c.user_id='$CAMI' and c.vence_el = $HOY + 60 and not exists (select 1 from reservas r where r.credito_id = c.id);")" 1 "el de 60 dias sigue libre"
+
+echo
+echo "=== 8. UN CREDITO VENCIDO NO SIRVE PARA RESERVAR ==="
+DANI=44444444-4444-4444-4444-444444444444
+q -q <<SQL
+insert into auth.users (id, email, raw_user_meta_data)
+values ('$DANI', 'dani@x.com', '{"nombre":"Dani"}'::jsonb);
+insert into compras (user_id, paquete_id, monto, estado)
+select '$DANI', (select id from paquetes limit 1), 1000, 'aprobada';
+insert into creditos (user_id, compra_id, vence_el)
+select '$DANI', id, $HOY - 1 from compras where user_id='$DANI';
+SQL
+C6=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), current_date + 5, '23:30', 6 returning id;")
+igual "$(como $DANI "select resultado from reservar_clase('$C6');")" sin_creditos "Dani, con un credito que vencio ayer, pide una clase"
+igual "$(confirmadas $C6)" 0 "reservas creadas en esa clase"
+igual "$(q -c "select count(*) from reservas r join creditos c on c.id = r.credito_id where c.user_id='$DANI';")" 0 "reservas que usan el credito vencido"
+
 echo
 echo "TODO OK"
