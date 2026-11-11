@@ -43,7 +43,7 @@ están enumerados uno por uno en la sección 3.
 | Tipo | Dónde | Cuántas |
 |---|---|---|
 | **Unitarias** | `probar-contrasena.mjs` (22 casos en su tabla), `probar-esquemas.mjs` (11 aserciones), `probar-agenda.mjs` (3 escenarios, 17 aserciones) | 22 + 14 |
-| **De integración contra la base** | `probar-reservas.sh` (6), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `probar-mensajes.sh` (8 secciones), `validar-local.sh` (6 secciones) | 44 |
+| **De integración contra la base** | `probar-reservas.sh` (8), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `probar-mensajes.sh` (8 secciones), `validar-local.sh` (6 secciones) | 46 |
 | **De concurrencia** | `probar-reservas.sh`, con **dos transacciones reales** | 1, y es el que importa |
 | **De contrato con un tercero** | `probar-webhook.mjs` (13), `probar-webhook-dos-claves.sh` (8), `probar-preferencia.mjs` (3) | 24 |
 | **E2E de navegador** | `e2e/*.spec.js` | **84 en total: 82 pasan, 2 se saltean** |
@@ -94,6 +94,16 @@ hoy corre y se puede volver a correr con el comando que encabeza su tabla.
 | R4 | Una reserva en una clase de **mañana**, ventana de 6 horas | `cancelar_reserva()` | la `reserva_id` | `ok` con `credito_devuelto = true`; el `credito_id` se suelta |
 | R5 | Una reserva en una clase **dentro de 2 horas** | `cancelar_reserva()` | la `reserva_id` | `ok` con `credito_devuelto = false`; el crédito queda enganchado |
 | R6 | Una clase con reservas confirmadas | Pasar la clase a `cancelada` desde el panel | `estado = 'cancelada'` | Un disparador pasa sus reservas a canceladas y **devuelve el crédito sin mirar la ventana**. Al reactivarla, no vuelven |
+| R7 | Una persona con **dos créditos**: uno vence en 60 días y se cargó primero, el otro vence en 10 y se cargó después | `reservar_clase()` | clase con lugar | Se consume **el de 10 días**, y el de 60 sigue libre. Que el de 10 se cargue después es a propósito: un orden por fecha de carga elegiría el otro |
+| R8 | Una persona con **un solo crédito, vencido ayer** | `reservar_clase()` | clase con lugar | `sin_creditos`, no se crea reserva y el crédito vencido no queda usado |
+
+**Cada resultado esperado es una afirmación**: si no se cumple, el arnés corta
+con `FALLA` y código 1. Hasta el 11 de noviembre de 2026 no era así: mostraba el
+resultado al lado de lo que *"tiene que"* dar y solo cortaba si una consulta
+daba error, así que el CI lo veía en verde aunque cancelar a tiempo dejara de
+devolver el crédito. Era una comprobación del tipo (c) de §7.5: no podía fallar.
+Contraprobado rompiendo `cancelar_reserva()` en una copia descartable —cancelar
+tarde devolvía el crédito—: el arnés corta en R5.
 
 ### 3.2 Bloqueo de ingreso — `zsh supabase/probar-bloqueo.sh`
 

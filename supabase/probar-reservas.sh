@@ -60,35 +60,22 @@ echo "preparado: 2 personas, 1 clase con cupo 1, 1 credito cada una"
 echo
 CLASE=$(q -c "select id from clases where fecha = current_date + 1 and hora = '23:30';")
 
-echo "=== 1. LA CARRERA POR EL ULTIMO LUGAR ==="
-echo "    Ana abre una transaccion, llama a la funcion y la deja abierta 3 segundos."
-echo "    Bea llama al mismo tiempo: tiene que quedarse esperando el candado."
-(psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
-begin;
-select set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',true);
-select '  Ana  -> ' || resultado from reservar_clase('$CLASE');
-select pg_sleep(3);
-commit;
-SQL
-) &
-sleep 1
-INICIO=$(python3 -c "import time;print(time.time())")
-psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
-begin;
-select set_config('request.jwt.claim.sub','22222222-2222-2222-2222-222222222222',true);
-select '  Bea  -> ' || resultado from reservar_clase('$CLASE');
-commit;
-SQL
-FIN=$(python3 -c "import time;print(time.time())")
-wait
-python3 -c "print(f'  Bea espero {$FIN - $INICIO:.1f}s por el candado')"
-echo "  reservas confirmadas en la clase: $(q -c "select count(*) from reservas where clase_id='$CLASE' and estado='confirmada';")  (tiene que ser 1)"
+# CADA SECCION AFIRMA, NO SOLO IMPRIME. Hasta el 11 de noviembre de 2026 este
+# arnes mostraba el resultado al lado de lo que "tiene que" dar y dejaba que una
+# persona lo leyera: en el CI pasaba en verde aunque cancelar a tiempo dejara de
+# devolver el credito, porque solo cortaba si una consulta daba error. Una
+# comprobacion que no puede fallar no comprueba nada.
+fallar() { echo "  FALLA: $1" >&2; exit 1; }
+igual() { # igual <obtenido> <esperado> <que se comprueba>
+  if [ "$1" = "$2" ]; then echo "  ok  $3: $1"; else fallar "$3: dio '$1' y tenia que dar '$2'"; fi
+}
 
-echo
+# Hacer algo como una persona. `set local` en vez de set_config(): no imprime
+# nada, asi que lo que devuelve esta funcion es solo el resultado de la consulta.
 como() { # como <uuid> <sql>
   psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 <<SQL
 begin;
-select set_config('request.jwt.claim.sub','$1',true);
+set local "request.jwt.claim.sub" = '$1';
 $2
 commit;
 SQL
@@ -96,44 +83,121 @@ SQL
 ANA=11111111-1111-1111-1111-111111111111
 BEA=22222222-2222-2222-2222-222222222222
 libres() { q -c "select count(*) from creditos c where c.user_id='$1' and c.vence_el >= current_date and not exists (select 1 from reservas r where r.credito_id = c.id);"; }
+confirmadas() { q -c "select count(*) from reservas where clase_id='$1' and estado='confirmada';"; }
 
+echo "=== 1. LA CARRERA POR EL ULTIMO LUGAR ==="
+echo "    Ana abre una transaccion, llama a la funcion y la deja abierta 3 segundos."
+echo "    Bea llama al mismo tiempo: tiene que quedarse esperando el candado."
+(psql -h 127.0.0.1 -p $PUERTO -U prueba -d v -tA -q -v ON_ERROR_STOP=1 > "$S/ana.txt" <<SQL
+begin;
+set local "request.jwt.claim.sub" = '$ANA';
+select resultado from reservar_clase('$CLASE');
+select pg_sleep(3);
+commit;
+SQL
+) &
+sleep 1
+INICIO=$(python3 -c "import time;print(time.time())")
+BEA_R=$(como $BEA "select resultado from reservar_clase('$CLASE');")
+FIN=$(python3 -c "import time;print(time.time())")
+wait
+ANA_R=$(grep -v '^$' "$S/ana.txt" | head -1)
+igual "$ANA_R" ok "Ana, que llego primero"
+igual "$BEA_R" completa "Bea, que llego mientras Ana tenia el candado"
+igual "$(confirmadas $CLASE)" 1 "reservas confirmadas en la clase de 1 lugar"
+# Que Bea haya ESPERADO es la evidencia del candado. Sin el `for update`, Bea no
+# esperaria: contaria cero, porque la reserva de Ana todavia no tiene commit, y
+# entraria tambien.
+ESPERA=$(python3 -c "print(f'{$FIN - $INICIO:.1f}')")
+python3 -c "import sys; sys.exit(0 if $ESPERA >= 1.0 else 1)" \
+  && echo "  ok  Bea espero el candado: ${ESPERA}s" \
+  || fallar "Bea no espero el candado (${ESPERA}s): la segunda no quedo bloqueada"
+
+echo
 echo "=== 2. SIN CREDITOS ==="
 C2=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), current_date + 2, '23:30', 6 returning id;")
-echo "  a Ana ya no le quedan creditos libres: $(libres $ANA)"
-como $ANA "select '  Ana pide otra clase -> ' || resultado from reservar_clase('$C2');"
+igual "$(libres $ANA)" 0 "creditos libres de Ana"
+igual "$(como $ANA "select resultado from reservar_clase('$C2');")" sin_creditos "Ana pide otra clase"
+igual "$(confirmadas $C2)" 0 "reservas creadas en esa clase"
 
 echo
 echo "=== 3. YA RESERVADA ==="
-CLASE=$(q -c "select id from clases where fecha = current_date + 1 and hora = '23:30';")
-como $ANA "select '  Ana pide la misma de nuevo -> ' || resultado from reservar_clase('$CLASE');"
+igual "$(como $ANA "select resultado from reservar_clase('$CLASE');")" ya_reservada "Ana pide la misma de nuevo"
 
 echo
 echo "=== 4. CANCELAR A TIEMPO (clase manana, ventana de 6 horas) ==="
 R=$(q -c "select id from reservas where user_id='$ANA' and estado='confirmada' limit 1;")
-echo "  creditos libres de Ana antes: $(libres $ANA)"
-como $ANA "select '  cancelar -> ' || resultado || ', credito devuelto: ' || credito_devuelto from cancelar_reserva('$R');"
-echo "  creditos libres de Ana despues: $(libres $ANA)   (tiene que volver a 1)"
+igual "$(libres $ANA)" 0 "creditos libres de Ana antes"
+igual "$(como $ANA "select resultado || ' ' || credito_devuelto from cancelar_reserva('$R');")" "ok true" "cancelar, y si devuelve el credito"
+igual "$(libres $ANA)" 1 "creditos libres de Ana despues"
 
 echo
 echo "=== 5. CANCELAR TARDE (clase dentro de 2 horas) ==="
 C3=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), (now() + interval '2 hours')::date, to_char(now() + interval '2 hours','HH24:MI')::time, 6 returning id;")
-como $ANA "select '  reservar -> ' || resultado from reservar_clase('$C3');"
-echo "  creditos libres de Ana: $(libres $ANA)"
+igual "$(como $ANA "select resultado from reservar_clase('$C3');")" ok "Ana reserva la clase de dentro de 2 horas"
+igual "$(libres $ANA)" 0 "creditos libres de Ana"
 R3=$(q -c "select id from reservas where user_id='$ANA' and clase_id='$C3';")
-como $ANA "select '  cancelar -> ' || resultado || ', credito devuelto: ' || credito_devuelto from cancelar_reserva('$R3');"
-echo "  creditos libres de Ana despues: $(libres $ANA)   (tiene que seguir en 0: lo perdio)"
+igual "$(como $ANA "select resultado || ' ' || credito_devuelto from cancelar_reserva('$R3');")" "ok false" "cancelar tarde, y si devuelve el credito"
+igual "$(libres $ANA)" 0 "creditos libres de Ana despues: lo perdio"
 
 echo
 echo "=== 6. EL ESTUDIO CANCELA UNA CLASE ==="
 q -q -c "update creditos set vence_el = current_date + 30 where user_id='$BEA';"
 C4=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), current_date + 3, '23:30', 6 returning id;")
-como $BEA "select '  Bea reserva -> ' || resultado from reservar_clase('$C4');"
-echo "  creditos libres de Bea: $(libres $BEA)   reservas confirmadas: $(q -c "select count(*) from reservas where clase_id='$C4' and estado='confirmada';")"
+igual "$(como $BEA "select resultado from reservar_clase('$C4');")" ok "Bea reserva"
+igual "$(libres $BEA)" 0 "creditos libres de Bea"
+igual "$(confirmadas $C4)" 1 "reservas confirmadas"
 echo "  --- el estudio cancela la clase ---"
 q -q -c "update clases set estado='cancelada' where id='$C4';"
-echo "  reservas confirmadas: $(q -c "select count(*) from reservas where clase_id='$C4' and estado='confirmada';")  canceladas: $(q -c "select count(*) from reservas where clase_id='$C4' and estado='cancelada';")"
-echo "  creditos libres de Bea: $(libres $BEA)   (tiene que haber vuelto a 1, sin mirar la ventana)"
+igual "$(confirmadas $C4)" 0 "reservas confirmadas"
+igual "$(q -c "select count(*) from reservas where clase_id='$C4' and estado='cancelada';")" 1 "reservas canceladas"
+igual "$(libres $BEA)" 1 "creditos libres de Bea: volvio sin mirar la ventana"
 echo "  --- el estudio la reactiva ---"
 q -q -c "update clases set estado='programada' where id='$C4';"
-echo "  reservas confirmadas: $(q -c "select count(*) from reservas where clase_id='$C4' and estado='confirmada';")  (tiene que seguir en 0: no vuelven)"
-echo "  creditos libres de Bea: $(libres $BEA)   (sigue teniendolo)"
+igual "$(confirmadas $C4)" 0 "reservas confirmadas: no vuelven"
+igual "$(libres $BEA)" 1 "creditos libres de Bea: sigue teniendolo"
+
+# Las fechas de los dos casos que siguen salen de la hora de Buenos Aires, igual
+# que adentro de reservar_clase(). Con current_date, un servidor en UTC a las 22
+# de Buenos Aires ya esta en el dia siguiente, y "vencio ayer" pasaria a ser
+# "vence hoy", que todavia sirve.
+HOY="(now() at time zone 'America/Argentina/Buenos_Aires')::date"
+
+echo
+echo "=== 7. SE CONSUME PRIMERO EL CREDITO QUE VENCE ANTES ==="
+# Dos creditos para Cami. El que vence ANTES se carga DESPUES: si la funcion
+# ordenara por fecha de carga, o por nada, elegiria el otro y esto lo detecta.
+CAMI=33333333-3333-3333-3333-333333333333
+q -q <<SQL
+insert into auth.users (id, email, raw_user_meta_data)
+values ('$CAMI', 'cami@x.com', '{"nombre":"Cami"}'::jsonb);
+insert into compras (user_id, paquete_id, monto, estado)
+select '$CAMI', (select id from paquetes limit 1), 1000, 'aprobada';
+insert into creditos (user_id, compra_id, vence_el, created_at)
+select '$CAMI', id, $HOY + 60, now() - interval '1 day' from compras where user_id='$CAMI';
+insert into creditos (user_id, compra_id, vence_el, created_at)
+select '$CAMI', id, $HOY + 10, now() from compras where user_id='$CAMI';
+SQL
+C5=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), current_date + 4, '23:30', 6 returning id;")
+igual "$(como $CAMI "select resultado from reservar_clase('$C5');")" ok "Cami reserva"
+igual "$(q -c "select c.vence_el - $HOY from reservas r join creditos c on c.id = r.credito_id where r.user_id='$CAMI' and r.clase_id='$C5';")" 10 "dias que le quedaban al credito consumido"
+igual "$(q -c "select count(*) from creditos c where c.user_id='$CAMI' and c.vence_el = $HOY + 60 and not exists (select 1 from reservas r where r.credito_id = c.id);")" 1 "el de 60 dias sigue libre"
+
+echo
+echo "=== 8. UN CREDITO VENCIDO NO SIRVE PARA RESERVAR ==="
+DANI=44444444-4444-4444-4444-444444444444
+q -q <<SQL
+insert into auth.users (id, email, raw_user_meta_data)
+values ('$DANI', 'dani@x.com', '{"nombre":"Dani"}'::jsonb);
+insert into compras (user_id, paquete_id, monto, estado)
+select '$DANI', (select id from paquetes limit 1), 1000, 'aprobada';
+insert into creditos (user_id, compra_id, vence_el)
+select '$DANI', id, $HOY - 1 from compras where user_id='$DANI';
+SQL
+C6=$(q -c "insert into clases (tipo_clase_id, fecha, hora, cupo_total) select (select id from tipos_clase limit 1), current_date + 5, '23:30', 6 returning id;")
+igual "$(como $DANI "select resultado from reservar_clase('$C6');")" sin_creditos "Dani, con un credito que vencio ayer, pide una clase"
+igual "$(confirmadas $C6)" 0 "reservas creadas en esa clase"
+igual "$(q -c "select count(*) from reservas r join creditos c on c.id = r.credito_id where c.user_id='$DANI';")" 0 "reservas que usan el credito vencido"
+
+echo
+echo "TODO OK"
