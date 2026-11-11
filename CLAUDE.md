@@ -506,10 +506,16 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
   checks. La segunda sin la primera no sirve, porque un push directo las
   saltea. Está en `docs/despliegue.md` §13, con los nombres exactos de los
   checks.
-- **Nada de lo que corre en cada push toca un servicio externo, y hay que
+- **Nada de lo que corre en cada push necesita una credencial, y hay que
   mantenerlo así.** Es lo que hace que el pipeline no necesite ningún secret.
   Un paso nuevo que precise una credencial va al job manual de E2E, no a los
   tres que corren siempre.
+- **Lo que sí depende de la red es bajar paquetes**: npm y zsh. El 11 de
+  noviembre de 2026 los servidores de Ubuntu no resolvieron durante horas y dos
+  jobs cayeron sin que hubiera nada mal en el proyecto. Por eso zsh se instala
+  con `.github/instalar-zsh.sh`, que prueba `apt-get` con tiempo límite y, si
+  falla, Homebrew. **Si un job cae en «zsh, que los arneses usan», mirar el
+  registro de ese paso antes de revisar el código.**
 - **El build no puede necesitar la base.** `generateStaticParams` de
   `/clases/[slug]` es lo único del proyecto que consulta Supabase al compilar,
   y devuelve lista vacía si falla. Un build que depende de que un tercero esté

@@ -16,8 +16,14 @@
 # repositorio puede tocar el sitio en vivo.
 #
 # Y NO HACE FALTA NINGUN SECRET para lo que corre en cada push. Eso no es una
-# omisión, es un resultado: nada de lo que se ejecuta acá toca un servicio
-# externo. Los secrets aparecen solo en el job manual del final.
+# omisión, es un resultado: nada de lo que se ejecuta acá toca un servicio que
+# pida credenciales. Los secrets aparecen solo en el job manual del final.
+#
+# LO QUE SI HACE ES BAJAR PAQUETES, de npm y zsh, y eso depende de la red del
+# runner. El 11 de noviembre de 2026 los servidores de Ubuntu no resolvieron
+# durante horas y los dos jobs que instalan zsh cortaron sin que hubiera nada
+# mal en el proyecto. Por eso zsh tiene un segundo camino: ver
+# .github/instalar-zsh.sh.
 name: ci
 
 on:
@@ -106,11 +112,7 @@ jobs:
       # migraciones de verdad: recorren supabase/migraciones/*.sql, así que una
       # migración nueva entra sola.
       - name: zsh, que los arneses usan
-        run: |
-          if ! command -v zsh > /dev/null; then
-            sudo apt-get update && sudo apt-get install -y zsh
-          fi
-          zsh --version
+        run: bash .github/instalar-zsh.sh
 
       # Se deja a la vista dónde están los binarios: si algún día el runner
       # cambia de versión, este paso lo muestra antes de que falle otro.
@@ -189,14 +191,15 @@ jobs:
           }
           URL_BASE=http://localhost:3200 node docs/ejemplos/probar-webhook.mjs
 
+      # Un paso propio y no adentro del de abajo: si zsh se instala con
+      # Homebrew, su PATH solo vale para los pasos siguientes.
+      - name: zsh, que el arnés de las dos claves usa
+        run: bash .github/instalar-zsh.sh
+
       # Este arnés levanta sus propios servidores, uno por combinación de
       # claves, y les pasa los valores por entorno.
       - name: las dos claves de firma, 8 casos
-        run: |
-          if ! command -v zsh > /dev/null; then
-            sudo apt-get update && sudo apt-get install -y zsh
-          fi
-          zsh docs/ejemplos/probar-webhook-dos-claves.sh
+        run: zsh docs/ejemplos/probar-webhook-dos-claves.sh
 
   # ---------------------------------------------------------------------------
   # NO CORRE EN CADA PUSH, A PROPOSITO. Solo a mano, desde la pestaña Actions.
