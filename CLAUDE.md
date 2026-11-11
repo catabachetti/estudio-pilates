@@ -214,8 +214,8 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   tomando el último lugar ganan las dos.
 - **`reservas` no tiene política de INSERT ni de UPDATE.** Es a propósito: el
   candado de la función solo vale si no hay otra puerta. Lo mismo que
-  `creditos`. Si alguna pantalla necesita escribir ahí, va una función nueva,
-  no una política.
+  `creditos` y, desde la migración 015, `compras`. Si alguna pantalla necesita
+  escribir ahí, va una función nueva, no una política.
 - **Un crédito está tomado si lo referencia cualquier reserva**, sin mirar su
   estado. Cancelar a tiempo suelta el `credito_id` y lo devuelve; cancelar
   tarde lo deja enganchado y por eso se pierde. La regla vive en

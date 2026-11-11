@@ -43,7 +43,7 @@ están enumerados uno por uno en la sección 3.
 | Tipo | Dónde | Cuántas |
 |---|---|---|
 | **Unitarias** | `probar-contrasena.mjs` (22 casos en su tabla), `probar-esquemas.mjs` (11 aserciones), `probar-agenda.mjs` (3 escenarios, 17 aserciones) | 22 + 14 |
-| **De integración contra la base** | `probar-reservas.sh` (8), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (7), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `probar-mensajes.sh` (8 secciones), `validar-local.sh` (6 secciones) | 46 |
+| **De integración contra la base** | `probar-reservas.sh` (8), `probar-bloqueo.sh` (9), `probar-acreditacion.sh` (8), `probar-limpieza.sh` (4), `probar-agenda-agotada.sh` (4), `probar-mensajes.sh` (8 secciones), `validar-local.sh` (6 secciones) | 47 |
 | **De concurrencia** | `probar-reservas.sh`, con **dos transacciones reales** | 1, y es el que importa |
 | **De contrato con un tercero** | `probar-webhook.mjs` (13), `probar-webhook-dos-claves.sh` (8), `probar-preferencia.mjs` (3) | 24 |
 | **E2E de navegador** | `e2e/*.spec.js` | **84 en total: 82 pasan, 2 se saltean** |
@@ -130,6 +130,7 @@ tarde devolvía el crédito—: el arnés corta en R5.
 | A5 | ídem | con rol `anon` | ídem | **No puede ni invocarla**: privilegio revocado |
 | A6 | Un pago ya acreditado | `otorgar_creditos()` con el **mismo** `mp_payment_id` | ídem | `ya_estaba = true`, `creditos_creados = 0`, y el total no se mueve |
 | A7 | Dos cuentas con sesión | Insertar una intención con el `user_id` **de la otra** | `user_id` ajeno | RLS la rechaza |
+| A8 | **Se reinstala a propósito la política de la 003**, «crea su compra» | Una clienta con sesión inserta en `compras` una compra `aprobada` por $1, y después llega el aviso real con ese número de pago | un `mp_payment_id` inventado | Con la política: **la escribe**, y `otorgar_creditos()` contesta `ya_estaba` sin crear créditos. Con la 015 aplicada: **RLS la rechaza**, y el webhook sigue acreditando |
 
 ### 3.4 Firma del webhook — `node docs/ejemplos/probar-webhook.mjs`
 

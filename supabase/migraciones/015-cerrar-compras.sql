@@ -1,0 +1,25 @@
+-- 015 — compras solo la escribe otorgar_creditos()
+--
+-- La 003 le dio a `compras` una política de INSERT, "crea su compra", de cuando
+-- se pensaba anotar la compra pendiente desde el sitio antes de pagar. Ese papel
+-- lo terminó haciendo `intenciones_de_pago` (013), y ninguna pantalla, prueba ni
+-- script escribe en `compras` por fuera de la función. La política quedó sin uso
+-- y abierta.
+--
+-- LO QUE PERMITÍA, medido el 11 de noviembre de 2026 en un Postgres descartable
+-- con los privilegios que Supabase da por defecto: una clienta con sesión
+-- escribía una compra "aprobada" a su nombre, por $1 y con un número de pago
+-- inventado. Eso solo no le daba créditos —`creditos` no tiene política de
+-- INSERT—, pero si después llegaba el aviso real de Mercado Pago con ese mismo
+-- número, otorgar_creditos() lo encontraba en el `unique` de mp_payment_id,
+-- contestaba ya_estaba y NO ACREDITABA NADA.
+--
+-- Sin la política, `compras` queda como `reservas` y `creditos`: cada quien lee
+-- las suyas, y escribir solo se puede desde otorgar_creditos(), que es
+-- `security definer` y verifica adentro quién llama. RLS activa sin política de
+-- INSERT no da error al sitio: rechaza la fila.
+--
+-- Lo prueba la sección 5 de supabase/probar-acreditacion.sh, con contraprueba:
+-- reinstala la política de la 003, mide el agujero, aplica este archivo y mide
+-- que se cerró.
+drop policy "crea su compra" on compras;
