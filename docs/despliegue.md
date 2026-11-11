@@ -419,7 +419,9 @@ implementación que vale: el `if` de un job **no puede leer el contexto
 ## 12. Secrets
 
 **El pipeline que corre en cada push no usa ninguno, y eso es un resultado, no
-una omisión:** nada de lo que se ejecuta ahí toca un servicio externo. El build
+una omisión:** nada de lo que se ejecuta ahí toca un servicio que pida
+credenciales. (Sí baja paquetes de npm y de zsh, y eso depende de la red del
+runner: ver `.github/instalar-zsh.sh`.) El build
 no necesita la base (§16), los arneses levantan su propio Postgres, y el webhook
 se prueba con claves inventadas.
 
