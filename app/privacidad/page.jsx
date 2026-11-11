@@ -29,9 +29,8 @@ export default function PrivacidadPage() {
 
         <h2>Para qué los usamos</h2>
         <p>
-          Usamos tus datos para gestionar tus créditos y reservas, avisarte
-          cuando se libera un lugar de la lista de espera y enviarte
-          información sobre el estudio. Podés pedirnos que dejemos de
+          Usamos tus datos para gestionar tus créditos y reservas y para
+          enviarte información sobre el estudio. Podés pedirnos que dejemos de
           escribirte cuando quieras.
         </p>
 

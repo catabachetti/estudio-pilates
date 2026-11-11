@@ -1,5 +1,6 @@
 import EncabezadoPagina from '../components/EncabezadoPagina'
-import { MAIL } from '../datos/sitio'
+import { DIRECCION, MAIL } from '../datos/sitio'
+import { horasDeCancelacion } from '../lib/ajustes'
 
 export const metadata = {
   title: 'Términos y condiciones | ACTIVE',
@@ -7,7 +8,11 @@ export const metadata = {
     'Condiciones de compra de paquetes, vigencia de los créditos y política de cancelación de ACTIVE.',
 }
 
-export default function TerminosPage() {
+export default async function TerminosPage() {
+  // La misma ventana que aplica cancelar_reserva(). Si no se pudo leer, la
+  // frase sale sin el número en vez de afirmar uno.
+  const horas = await horasDeCancelacion()
+
   return (
     <main className="seccion">
       <div className="contenedor texto-legal">
@@ -18,8 +23,8 @@ export default function TerminosPage() {
         <h2>Alcance</h2>
         <p>
           Estas condiciones regulan la compra de paquetes de clases y la
-          reserva de turnos en ACTIVE, con domicilio en Gorriti 4520, Ciudad
-          de Buenos Aires. Al comprar un paquete aceptás lo que sigue.
+          reserva de turnos en ACTIVE, con domicilio en {DIRECCION.calle},{' '}
+          {DIRECCION.ciudad}. Al comprar un paquete aceptás lo que sigue.
         </p>
 
         <h2>Paquetes y vigencia</h2>
@@ -35,16 +40,18 @@ export default function TerminosPage() {
         <h2>Reservas y cancelaciones</h2>
         <p>
           Las reservas se hacen por la web y están sujetas a disponibilidad.
-          Podés cancelar sin costo hasta 6 horas antes del horario de la clase
-          y el crédito vuelve a tu cuenta. Pasada esa ventana, o si no te
-          presentás, el crédito se descuenta igual.
+          {typeof horas === 'number'
+            ? `Podés cancelar sin costo hasta ${horas} horas antes del horario de la clase y el crédito vuelve a tu cuenta.`
+            : 'Podés cancelar sin costo con la anticipación que indica la página de reservas, y el crédito vuelve a tu cuenta.'}{' '}
+          Pasada esa ventana, o si no te presentás, el crédito se descuenta
+          igual.
         </p>
 
         <h2>Lista de espera</h2>
         <p>
-          Si la clase está completa podés anotarte en la lista de espera. Si
-          alguien cancela, el lugar se asigna automáticamente a la primera
-          persona de la lista y te avisamos por mail.
+          Si la clase está completa, desde la página de reservas podés pedir
+          un lugar en la lista de espera: se abre WhatsApp con el mensaje ya
+          escrito. La lista la lleva el estudio; no se asigna sola.
         </p>
 
         <h2>Salud</h2>

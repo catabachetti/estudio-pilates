@@ -45,6 +45,8 @@ function validar({ nombre, precio, clases, dias_vigencia, incluye, orden }) {
 function publicar() {
   revalidatePath('/paquetes')
   revalidatePath('/')
+  // Las preguntas frecuentes muestran la vigencia de cada paquete.
+  revalidatePath('/preguntas')
 }
 
 export async function editarPaquete(formData) {
