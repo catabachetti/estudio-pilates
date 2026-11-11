@@ -49,9 +49,9 @@ export default async function TerminosPage() {
 
         <h2>Lista de espera</h2>
         <p>
-          Si la clase está completa podés anotarte en la lista de espera. Si
-          alguien cancela, el lugar se asigna automáticamente a la primera
-          persona de la lista y te avisamos por mail.
+          Si la clase está completa, desde la página de reservas podés pedir
+          un lugar en la lista de espera: se abre WhatsApp con el mensaje ya
+          escrito. La lista la lleva el estudio; no se asigna sola.
         </p>
 
         <h2>Salud</h2>
