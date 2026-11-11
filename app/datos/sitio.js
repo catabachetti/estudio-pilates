@@ -49,7 +49,26 @@ export const navegacionPie = [
   { href: '/preguntas', texto: 'Preguntas' },
 ]
 
-export const preguntas = [
+// Las preguntas frecuentes afirman tres reglas del negocio: el cupo, la ventana
+// de cancelación y la vigencia de cada paquete. Ninguna se escribe acá a mano.
+// El cupo sale de CUPO_MAXIMO; las horas, de la tabla `ajustes`, y las
+// vigencias, de `paquetes`, que se editan desde el panel. Hasta el 11 de
+// noviembre de 2026 estaban escritas en el texto y coincidían de casualidad:
+// cambiar una vigencia en /admin/paquetes dejaba esta página mintiendo.
+//
+// Si un dato no se pudo leer, la respuesta sale sin ese número en vez de
+// afirmar uno inventado, igual que condicionesCon().
+function listaDeVigencias(vigencias) {
+  const partes = vigencias.map(
+    (p, i) => `${p.dias_vigencia}${i === 0 ? ' días' : ''} para ${p.nombre}`
+  )
+  return partes.length > 1
+    ? `${partes.slice(0, -1).join(', ')} y ${partes.at(-1)}`
+    : partes[0]
+}
+
+export function preguntasCon({ horas, vigencias } = {}) {
+  return [
   {
     pregunta: '¿Necesito experiencia previa?',
     respuesta:
@@ -63,24 +82,27 @@ export const preguntas = [
   {
     pregunta: '¿Cuántas personas hay por clase?',
     respuesta:
-      'Seis como máximo, porque tenemos seis reformers. Es el límite que nos permite corregir a cada persona durante toda la clase.',
+      `${CUPO_MAXIMO} como máximo, porque tenemos ${CUPO_MAXIMO} reformers. Es el límite que nos permite corregir a cada persona durante toda la clase.`,
   },
   {
     pregunta: '¿Puedo cancelar una reserva?',
     respuesta:
-      'Sí, hasta 6 horas antes del horario de la clase y el crédito vuelve a tu cuenta sin costo. Si cancelás después de esa ventana, o si no venís, el crédito se descuenta igual.',
+      typeof horas === 'number'
+        ? `Sí, hasta ${horas} horas antes del horario de la clase y el crédito vuelve a tu cuenta sin costo. Si cancelás después de esa ventana, o si no venís, el crédito se descuenta igual.`
+        : 'Sí, y si cancelás con la anticipación que indica la página de reservas el crédito vuelve a tu cuenta sin costo. Si cancelás después, o si no venís, el crédito se descuenta igual.',
   },
   {
     pregunta: '¿Los créditos vencen?',
     respuesta:
-      'Sí, cada paquete tiene su vigencia en días corridos y empieza a correr el día de la compra: 30 días para una clase, 60 para cuatro, 90 para ocho y 120 para doce. Cuando tenés créditos de distintos paquetes se usa primero el que vence antes.',
+      `Sí, cada paquete tiene su vigencia en días corridos y empieza a correr el día de la compra${vigencias?.length ? `: ${listaDeVigencias(vigencias)}` : ''}. Cuando tenés créditos de distintos paquetes se usa primero el que vence antes.`,
   },
   {
     pregunta: '¿Puedo hacer pilates embarazada?',
     respuesta:
       'Sí, con la clase Reformer Prenatal y con autorización de tu obstetra. Adaptamos los ejercicios al trimestre en el que estés y evitamos las posiciones contraindicadas.',
   },
-]
+  ]
+}
 
 // PROVISORIO HASTA E5: mientras no exista el formulario de reserva contra la
 // base de datos, las acciones del sitio (reservar, lista de espera, consultar

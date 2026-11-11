@@ -482,7 +482,8 @@ El recorrido completo está en `docs/pruebas.md`. Acá lo operativo.
 
 ## Qué revalidar después de escribir
 
-- **Paquetes** → `/paquetes` y `/`.
+- **Paquetes** → `/paquetes`, `/` y `/preguntas`, que muestra la vigencia de
+  cada paquete.
 - **Créditos y reservas** → nada. Esos datos no se muestran en ninguna página
   pública: los créditos de alguien se ven en su cuenta y en el panel, y las dos
   son dinámicas.
