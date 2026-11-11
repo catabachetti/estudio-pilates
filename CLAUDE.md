@@ -160,8 +160,11 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   es RLS. Si una tabla queda sin políticas o con RLS apagada, esa clave alcanza
   para leerla entera.
 - La clave secreta (`sb_secret_...`) solo se usa en el servidor, nunca lleva el
-  prefijo `NEXT_PUBLIC_` y nunca entra a git. Hoy el proyecto no la necesita:
-  todas las lecturas son públicas.
+  prefijo `NEXT_PUBLIC_` y nunca entra a git. **Se usa en un solo lugar desde el
+  30 de octubre de 2026: el aviso de pago de Mercado Pago** (`app/api/_lib/pago.js`,
+  con el cliente de `app/lib/supabase-servicio.js`), que llega sin sesión y
+  tiene que llamar a `otorgar_creditos()`. Fuera de ahí no hace falta: las
+  lecturas públicas van con la publishable y las escrituras, por funciones.
 - En Vercel las variables se cargan aparte, en Settings → Environment Variables,
   porque `.env.local` está ignorado por git y nunca llega al deploy.
   Las que empiezan con `NEXT_PUBLIC_` se cargan como **Config**, no como
