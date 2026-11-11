@@ -736,6 +736,39 @@ valores en vez de con los módulos: la documentación de la versión instalada l
 marca `experimental` y exigen activar `experimental.taint`. Es la misma
 decisión que se tomó con `forbidden()` en §10.2, y por el mismo motivo.
 
+## 13.2 Una política que nadie usaba, y que abría `compras`
+
+La 003 le dio a `compras` una política de INSERT, «crea su compra», de cuando se
+pensaba anotar la compra pendiente desde el sitio. Ese papel lo terminó haciendo
+`intenciones_de_pago`, y ninguna pantalla escribía en `compras`: la política
+quedó sin uso y abierta.
+
+Medido el 11 de noviembre de 2026 en un Postgres descartable, con los privilegios
+que Supabase da por defecto:
+
+| | Con la política | Sin ella (migración 015) |
+|---|---|---|
+| Una clienta escribe una compra `aprobada`, por $1, con un número de pago inventado | **la escribe** | RLS la rechaza |
+| Llega el aviso real de Mercado Pago con ese número | `ya_estaba`, **0 créditos**: el pago no se acredita | se acredita normal |
+
+La fila falsa sola no daba clases gratis —`creditos` no tiene política de
+INSERT—. Lo grave era lo segundo: el `unique` de `mp_payment_id`, que es lo que
+evita acreditar dos veces un pago, convertía una fila escrita a mano en un pago
+que nunca se acredita.
+
+Se cerró borrando la política. `compras` queda como `reservas` y `creditos`: cada
+quien lee las suyas, y escribir solo se puede desde `otorgar_creditos()`. Lo
+vigila la sección 5 de `supabase/probar-acreditacion.sh`, con contraprueba:
+reinstala la política de la 003, mide el agujero, aplica la 015 y mide que se
+cerró. Con una 015 que no borrara nada, el arnés corta.
+
+Para verlo en el proyecto real, desde el editor SQL de Supabase:
+
+```sql
+select policyname, cmd from pg_policies where tablename = 'compras';
+-- tiene que devolver una sola fila: "ve sus compras", SELECT
+```
+
 ---
 
 ## 14. Limitaciones conocidas

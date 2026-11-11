@@ -235,5 +235,58 @@ SQL
     || fallar "$NOMBRE modifico filas: quedan $QUEDAN"
 done
 
+# ---------------------------------------------------------------------------
+echo
+echo "=== 5. compras: solo otorgar_creditos() la escribe ==="
+# Hasta la migracion 015 habia una politica "crea su compra", de la 003, que
+# ninguna pantalla usaba. Dejaba a una clienta escribir una compra "aprobada" a
+# su nombre, con el monto y el numero de pago que quisiera. Y lo peor no era la
+# fila falsa: si despues llegaba el aviso real con ese numero,
+# otorgar_creditos() lo daba por acreditado y no creaba ningun credito.
+#
+# CONTRAPRUEBA: se reinstala la politica copiada tal cual de la 003 y se mide el
+# agujero. Despues se aplica el archivo de la 015 y se mide que se cerro.
+compra_falsa() {  # $1=mp_payment_id. Devuelve la salida en una linea.
+  qa -tA -v ON_ERROR_STOP=0 2>&1 <<SQL | tr '\n' ' '
+begin;
+set local role authenticated;
+set local "request.jwt.claim.sub" = '$CLIENTE';
+insert into public.compras (user_id, paquete_id, monto, estado, mp_payment_id)
+values ('$CLIENTE'::uuid, '$PAQ'::uuid, 1, 'aprobada', '$1') returning 'escrita';
+commit;
+SQL
+}
+# El drop previo hace que la preparacion no dependa de si la 015 corrio: sin
+# el, una 015 que no borrara nada haria fallar el create por "already exists" y
+# la contraprueba cortaria por la preparacion, no por la afirmacion.
+q -q -c 'drop policy if exists "crea su compra" on compras;'
+q -q -c "$(python3 - "$P/migraciones/003-politicas.sql" <<'PY3'
+import re, sys, pathlib
+t = pathlib.Path(sys.argv[1]).read_text()
+print(re.search(r'create policy "crea su compra" on compras for insert.*?;', t, re.S).group(0))
+PY3
+)"
+CON=$(compra_falsa pago-inventado-1)
+echo "$CON" | grep -q 'escrita' \
+  && echo "  con la politica de la 003         la clienta ESCRIBE una compra aprobada por \$1" \
+  || fallar "con la politica vieja deberia poder escribirla, dio: $CON"
+BLOQUEADO=$(acreditar service_role "" "$CLIENTE" "pago-inventado-1")
+echo "$BLOQUEADO" | grep -q "|0|t" \
+  && echo "  y el aviso real con ese numero    NO ACREDITA: ya_estaba, 0 creditos" \
+  || fallar "esperaba ya_estaba sin creditos, dio: $BLOQUEADO"
+
+q -q -f "$P/migraciones/015-cerrar-compras.sql"
+SIN=$(compra_falsa pago-inventado-2)
+echo "$SIN" | grep -qi 'row-level security' \
+  && echo "  con la 015                        RECHAZADA por RLS" \
+  || fallar "sin la politica deberia rechazarla, dio: $SIN"
+[ "$(q -tAc "select count(*) from compras where mp_payment_id = 'pago-inventado-2';")" = "0" ] \
+  || fallar "la compra rechazada igual quedo escrita"
+# Y el camino legitimo sigue abierto: el webhook acredita igual que antes.
+REAL=$(acreditar service_role "" "$CLIENTE" "pago-real-2")
+echo "$REAL" | grep -q "|$CLASES|f" \
+  && echo "  otorgar_creditos(), el webhook    ACREDITA $CLASES creditos" \
+  || fallar "otorgar_creditos deberia seguir acreditando, dio: $REAL"
+
 echo
 echo "TODO OK"

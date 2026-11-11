@@ -8,9 +8,10 @@ import { esUuid, esEmail } from '../lib/validacion'
 // Buscar a una persona y acreditarle un paquete a mano.
 //
 // Las dos escrituras pasan por funciones `security definer` de la migración 010,
-// que verifican es_admin() adentro. No se usa la clave secreta: `creditos` no
-// tiene política de INSERT y la de `compras` exige user_id = auth.uid(), así que
-// con la clave publishable esto no se puede hacer de ninguna otra forma.
+// que verifican es_admin() adentro. No se usa la clave secreta: ni `creditos` ni
+// `compras` tienen política de INSERT —la de `compras` se borró en la migración
+// 015—, así que con la clave publishable esto no se puede hacer de ninguna otra
+// forma.
 //
 // Acá no hay sinCambios(): estas acciones no hacen update, llaman a funciones
 // que devuelven filas. El control es que vengan los datos esperados.
