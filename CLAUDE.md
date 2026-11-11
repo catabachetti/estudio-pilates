@@ -224,7 +224,9 @@ Stack obligatorio: Next.js (App Router), Supabase, Mercado Pago sandbox, Vercel.
   canceladas y les devuelve el crédito, sin mirar la ventana. Al reactivarla no
   vuelven: esas personas ya tienen su crédito de nuevo.
 - `supabase/probar-reservas.sh` levanta un Postgres descartable y prueba las
-  seis situaciones, incluida la carrera con dos transacciones reales.
+  seis situaciones, incluida la carrera con dos transacciones reales. Cada
+  resultado es una afirmación que corta el arnés si no se cumple; hasta el 11 de
+  noviembre de 2026 solo se imprimía, y el CI no podía verlo fallar.
 
 ## La API (`/api/v1`)
 

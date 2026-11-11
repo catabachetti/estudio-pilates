@@ -95,6 +95,14 @@ hoy corre y se puede volver a correr con el comando que encabeza su tabla.
 | R5 | Una reserva en una clase **dentro de 2 horas** | `cancelar_reserva()` | la `reserva_id` | `ok` con `credito_devuelto = false`; el crédito queda enganchado |
 | R6 | Una clase con reservas confirmadas | Pasar la clase a `cancelada` desde el panel | `estado = 'cancelada'` | Un disparador pasa sus reservas a canceladas y **devuelve el crédito sin mirar la ventana**. Al reactivarla, no vuelven |
 
+**Cada resultado esperado es una afirmación**: si no se cumple, el arnés corta
+con `FALLA` y código 1. Hasta el 11 de noviembre de 2026 no era así: mostraba el
+resultado al lado de lo que *"tiene que"* dar y solo cortaba si una consulta
+daba error, así que el CI lo veía en verde aunque cancelar a tiempo dejara de
+devolver el crédito. Era una comprobación del tipo (c) de §7.5: no podía fallar.
+Contraprobado rompiendo `cancelar_reserva()` en una copia descartable —cancelar
+tarde devolvía el crédito—: el arnés corta en R5.
+
 ### 3.2 Bloqueo de ingreso — `zsh supabase/probar-bloqueo.sh`
 
 | # | Precondiciones | Pasos | Datos de entrada | Resultado esperado |
